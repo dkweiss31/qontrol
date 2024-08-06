@@ -2,7 +2,7 @@ from dynamiqs import Options
 
 
 class GRAPEOptions(Options):
-    """Subclass of dynamiqs Options to allow for various GRAPE options"""
+    """Subclass of dynamiqs Options to allow for various GRAPE options."""
 
     target_fidelity: float
     epochs: int

@@ -1,18 +1,20 @@
-import numpy as np
-from jaxtyping import ArrayLike
+from __future__ import annotations
+
+import glob
+import os
+import re
 import time
 
-import os
-import glob
-import re
 import h5py
+import numpy as np
+from jaxtyping import ArrayLike
 
 __all__ = [
-    "save_and_print",
-    "append_to_h5",
-    "write_to_h5",
-    "generate_file_path",
-    "extract_info_from_h5",
+    'save_and_print',
+    'append_to_h5',
+    'write_to_h5',
+    'generate_file_path',
+    'extract_info_from_h5',
 ]
 
 
@@ -23,16 +25,16 @@ def save_and_print(
     init_param_dict: dict,
     epoch: int = 0,
     prev_time: float = 0.0,
-):
-    """saves the infidelities and optimal parameters obtained at each timestep"""
-    infidelities = data_dict["infidelities"]
+) -> None:
+    """Saves the infidelities and optimal parameters obtained at each timestep."""
+    infidelities = data_dict['infidelities']
     if type(params_to_optimize) is dict:
         data_dict = data_dict | params_to_optimize
     else:
-        data_dict["opt_params"] = params_to_optimize
+        data_dict['opt_params'] = params_to_optimize
     print(
-        f"epoch: {epoch}, fids: {1 - infidelities},"
-        f" elapsed_time: {np.around(time.time() - prev_time, decimals=3)} s"
+        f'epoch: {epoch}, fids: {1 - infidelities},'
+        f' elapsed_time: {np.around(time.time() - prev_time, decimals=3)} s'
     )
     if epoch != 0:
         append_to_h5(filepath, data_dict)
@@ -40,48 +42,47 @@ def save_and_print(
         write_to_h5(filepath, data_dict, init_param_dict)
 
 
-def generate_file_path(extension, file_name, path):
+def generate_file_path(extension: str, file_name: str, path: str) -> str:
     # Ensure the path exists.
-    os.makedirs(path, exist_ok=True)
+    os.makedirs(path, exist_ok=True)  # noqa: PTH103
 
     # Create a save file name based on the one given; ensure it will
     # not conflict with others in the directory.
     max_numeric_prefix = -1
-    for file_name_ in glob.glob(os.path.join(path, "*")):
-        if f"_{file_name}.{extension}" in file_name_:
+    for file_name_ in glob.glob(os.path.join(path, '*')):  # noqa: PTH118, PTH207
+        if f'_{file_name}.{extension}' in file_name_:
             numeric_prefix = int(
-                re.match(r"(\d+)_", os.path.basename(file_name_)).group(1)
+                re.match(r'(\d+)_', os.path.basename(file_name_)).group(1)  # noqa: PTH119
             )
             max_numeric_prefix = max(numeric_prefix, max_numeric_prefix)
 
     # Generate the file path.
-    file_path = os.path.join(
-        path, f"{str(max_numeric_prefix + 1).zfill(5)}_{file_name}.{extension}"
+    return os.path.join(  # noqa: PTH118
+        path, f'{str(max_numeric_prefix + 1).zfill(5)}_{file_name}.{extension}'
     )
-    return file_path
 
 
-def extract_info_from_h5(filepath):
+def extract_info_from_h5(filepath: str) -> [dict, dict]:
     data_dict = {}
-    with h5py.File(filepath, "r") as f:
-        for key in f.keys():
+    with h5py.File(filepath, 'r') as f:
+        for key in f:
             data_dict[key] = f[key][()]
         param_dict = dict(f.attrs.items())
     return data_dict, param_dict
 
 
-def append_to_h5(filepath, data_dict):
-    with h5py.File(filepath, "a") as f:
+def append_to_h5(filepath: str, data_dict: dict) -> None:
+    with h5py.File(filepath, 'a') as f:
         for key, val in data_dict.items():
             f[key].resize(f[key].shape[0] + 1, axis=0)
             f[key][-1] = val
 
 
-def write_to_h5(filepath, data_dict, param_dict):
-    with h5py.File(filepath, "a") as f:
+def write_to_h5(filepath: str, data_dict: dict, param_dict: dict) -> None:
+    with h5py.File(filepath, 'a') as f:
         for key, val in data_dict.items():
             f.create_dataset(key, data=[val], chunks=True, maxshape=(None, *val.shape))
-        for kwarg in param_dict.keys():
+        for kwarg in param_dict:
             try:
                 f.attrs[kwarg] = param_dict[kwarg]
             except TypeError:

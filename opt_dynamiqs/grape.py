@@ -3,21 +3,22 @@ from __future__ import annotations
 import time
 from functools import partial
 
+import dynamiqs as dq
 import jax
 import jax.numpy as jnp
 import optax
-from jaxtyping import ArrayLike
-
-import dynamiqs as dq
-from dynamiqs import Options
-from .fidelity import infidelity_coherent, infidelity_incoherent
-from .file_io import save_and_print
-
 from dynamiqs._utils import cdtype
 from dynamiqs.solver import Solver, Tsit5
-from dynamiqs.time_array import timecallable, BatchedCallable
+from dynamiqs.time_array import BatchedCallable, timecallable
+from jax import Array
+from jaxtyping import ArrayLike
+from optax import GradientTransformation, TransformInitFn
 
-__all__ = ["grape"]
+from .fidelity import infidelity_coherent, infidelity_incoherent
+from .file_io import save_and_print
+from .options import GRAPEOptions
+
+__all__ = ['grape']
 
 
 def grape(
@@ -27,13 +28,13 @@ def grape(
     tsave: ArrayLike,
     params_to_optimize: ArrayLike,
     *,
-    filepath: str = "tmp.h5py",
-    optimizer: optax.GradientTransformation = optax.adam(0.1, b1=0.99, b2=0.99),
-    solver: Solver = Tsit5(),
-    options: Options = Options(),
-    init_params_to_save: dict = {},
-) -> ArrayLike:
-    r"""Perform gradient descent to optimize Hamiltonian parameters
+    filepath: str = 'tmp.h5py',
+    optimizer: GradientTransformation = optax.adam(0.1, b1=0.99, b2=0.99),  # noqa: B008
+    solver: Solver = Tsit5(),  # noqa: B008
+    options: GRAPEOptions = GRAPEOptions(),  # noqa: B008
+    init_params_to_save: dict | None = None,
+) -> Array:
+    r"""Perform gradient descent to optimize Hamiltonian parameters.
 
     This function takes as input a list of initial_states and a list of
     target_states, and optimizes params_to_optimize to achieve the highest fidelity
@@ -65,11 +66,13 @@ def grape(
     Returns:
         optimized parameters from the final timestep
     """
+    if init_params_to_save is None:
+        init_params_to_save = {}
     initial_states = jnp.asarray(initial_states, dtype=cdtype())
     target_states = jnp.asarray(target_states, dtype=cdtype())
     opt_state = optimizer.init(params_to_optimize)
-    init_param_dict = options.__dict__ | {"tsave": tsave} | init_params_to_save
-    print(f"saving results to {filepath}")
+    init_param_dict = options.__dict__ | {'tsave': tsave} | init_params_to_save
+    print(f'saving results to {filepath}')
     try:  # trick for catching keyboard interrupt
         for epoch in range(options.epochs):
             epoch_start_time = time.time()
@@ -84,7 +87,7 @@ def grape(
                 options,
                 optimizer,
             )
-            data_dict = {"infidelities": infids}
+            data_dict = {'infidelities': infids}
             save_and_print(
                 filepath,
                 data_dict,
@@ -94,31 +97,33 @@ def grape(
                 epoch_start_time,
             )
             if all(infids < 1 - options.target_fidelity):
-                print("target fidelity reached")
+                print('target fidelity reached')
                 break
-        print(f"all results saved to {filepath}")
-        return params_to_optimize
     except KeyboardInterrupt:
-        print("terminated on keyboard interrupt")
-        print(f"all results saved to {filepath}")
+        print('terminated on keyboard interrupt')
+        print(f'all results saved to {filepath}')
+        return params_to_optimize
+    else:
+        print(f'all results saved to {filepath}')
         return params_to_optimize
 
 
-@partial(jax.jit, static_argnames=("solver", "options", "optimizer"))
+@partial(jax.jit, static_argnames=('solver', 'options', 'optimizer'))
 def step(
-    params_to_optimize,
-    opt_state,
-    H_func,
-    initial_states,
-    target_states,
-    tsave,
-    solver,
-    options,
-    optimizer,
-):
-    """calculate gradient of the loss and step updated parameters.
+    params_to_optimize: Array,
+    opt_state: TransformInitFn,
+    H_func: callable,
+    initial_states: Array,
+    target_states: Array,
+    tsave: Array,
+    solver: Solver,
+    options: GRAPEOptions,
+    optimizer: GradientTransformation,
+) -> [Array, TransformInitFn, Array]:
+    """Calculate gradient of the loss and step updated parameters.
     We have has_aux=True because loss also returns the infidelities on the side
-    (want to save those numbers as they give info on which pulse was best)"""
+    (want to save those numbers as they give info on which pulse was best).
+    """
     grads, infids = jax.grad(loss, has_aux=True)(
         params_to_optimize,
         H_func,
@@ -134,22 +139,17 @@ def step(
 
 
 def loss(
-    params_to_optimize,
-    H_func,
-    initial_states,
-    target_states,
-    tsave,
-    solver,
-    options,
-):
-    if options.coherent:
-        infid_func = infidelity_coherent
-    else:
-        infid_func = infidelity_incoherent
+    params_to_optimize: Array,
+    H_func: callable,
+    initial_states: Array,
+    target_states: Array,
+    tsave: Array,
+    solver: Solver,
+    options: GRAPEOptions,
+) -> [float, Array]:
+    infid_func = infidelity_coherent if options.coherent else infidelity_incoherent
     H_func = partial(H_func, drive_params=params_to_optimize)
-    H = timecallable(
-        H_func,
-    )
+    H = timecallable(H_func)
     results = dq.sesolve(H, initial_states, tsave, solver=solver, options=options)
     if options.save_states:
         final_states = results.states[..., -1, :, :]
