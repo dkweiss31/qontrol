@@ -9,7 +9,6 @@ import jax.numpy as jnp
 import optax
 from dynamiqs._utils import cdtype
 from dynamiqs.solver import Solver, Tsit5
-from dynamiqs.time_array import BatchedCallable, timecallable
 from jax import Array
 from jaxtyping import ArrayLike
 from optax import GradientTransformation, TransformInitFn
@@ -22,7 +21,8 @@ __all__ = ['grape']
 
 
 def grape(
-    H_func: BatchedCallable,
+    H_func: callable,
+    update_fun: callable,
     initial_states: ArrayLike,
     target_states: ArrayLike,
     tsave: ArrayLike,
@@ -80,6 +80,7 @@ def grape(
                 params_to_optimize,
                 opt_state,
                 H_func,
+                update_fun,
                 initial_states,
                 target_states,
                 tsave,
@@ -113,6 +114,7 @@ def step(
     params_to_optimize: Array,
     opt_state: TransformInitFn,
     H_func: callable,
+    update_fun: callable,
     initial_states: Array,
     target_states: Array,
     tsave: Array,
@@ -127,6 +129,7 @@ def step(
     grads, infids = jax.grad(loss, has_aux=True)(
         params_to_optimize,
         H_func,
+        update_fun,
         initial_states,
         target_states,
         tsave,
@@ -141,6 +144,7 @@ def step(
 def loss(
     params_to_optimize: Array,
     H_func: callable,
+    update_fun: callable,
     initial_states: Array,
     target_states: Array,
     tsave: Array,
@@ -148,8 +152,7 @@ def loss(
     options: GRAPEOptions,
 ) -> [float, Array]:
     infid_func = infidelity_coherent if options.coherent else infidelity_incoherent
-    H_func = partial(H_func, drive_params=params_to_optimize)
-    H = timecallable(H_func)
+    H = update_fun(H_func, params_to_optimize)
     results = dq.sesolve(H, initial_states, tsave, solver=solver, options=options)
     if options.save_states:
         final_states = results.states[..., -1, :, :]

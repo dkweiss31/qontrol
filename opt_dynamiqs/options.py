@@ -12,7 +12,7 @@ class GRAPEOptions(Options):
         self,
         target_fidelity: float = 0.9995,
         epochs: int = 1000,
-        coherent: bool = True,
+        coherent: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)

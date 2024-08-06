@@ -2,13 +2,13 @@ import argparse
 from functools import partial
 
 import diffrax as dx
-import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import optax
 from dynamiqs import basis, dag, destroy, sesolve, timecallable
 from jax import Array
+import jax.tree_util as jtu
 
 from opt_dynamiqs import GRAPEOptions, all_cardinal_states, generate_file_path, grape
 
@@ -23,26 +23,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--ramp_nts', default=3, type=int, help='numper of points in ramps'
     )
-    parser.add_argument(
-        '--scale',
-        default=1e-5,
-        type=float,
-        help='randomization scale for initial pulse',
-    )
-    parser.add_argument(
-        '--coherent', default=0, type=int, help='which fidelity metric to use'
-    )
-    parser.add_argument('--epochs', default=2000, type=int, help='number of epochs')
-    parser.add_argument(
-        '--target_fidelity', default=0.9995, type=float, help='target fidelity'
-    )
-    parser.add_argument(
-        '--rng_seed', default=85, type=int, help='rng seed for random initial pulses'
-    )  # 87336259
-    parser.add_argument('--plot', default=True, type=bool, help='plot the results?')
     parser_args = parser.parse_args()
-    filename = generate_file_path('h5py', 'DRAG', 'out')
-    dim = parser_args.dim
+    filename = generate_file_path('h5py', 'Kerr_tc', 'out')
 
     optimizer = optax.adam(learning_rate=0.0001, b1=0.99, b2=0.99)
     ntimes = int(parser_args.time // parser_args.dt) + 1
@@ -55,30 +37,22 @@ if __name__ == '__main__':
     )
     options = GRAPEOptions(
         save_states=False,
-        target_fidelity=parser_args.target_fidelity,
-        epochs=parser_args.epochs,
-        coherent=parser_args.coherent,
         progress_meter=None,
     )
-    a = destroy(dim)
+    a = destroy(parser_args.dim)
     H0 = -0.5 * parser_args.Kerr * 2.0 * jnp.pi * dag(a) @ dag(a) @ a @ a
     H1 = [a + dag(a), 1j * (a - dag(a))]
     H1_labels = ['I', 'Q']
 
-    initial_states = [basis(dim, 0), basis(dim, 1)]
-    final_states = [basis(dim, 1), basis(dim, 0)]
+    initial_states = [basis(parser_args.dim, 0), basis(parser_args.dim, 1)]
+    final_states = [basis(parser_args.dim, 1), basis(parser_args.dim, 0)]
 
     # need to form superpositions so that the phase information is correct
-    if not parser_args.coherent:
+    if not options.coherent:
         initial_states = all_cardinal_states(initial_states)
         final_states = all_cardinal_states(final_states)
 
-    rng = np.random.default_rng(parser_args.rng_seed)
-    init_drive_params = (
-        2.0
-        * jnp.pi
-        * (-2.0 * parser_args.scale * rng.random((len(H1), ntimes)) + parser_args.scale)
-    )
+    init_drive_params = 0.001 * jnp.ones((len(H1), ntimes))
 
     def _drive_spline(
         drive_params: Array, envelope: Array, ts: Array
@@ -94,10 +68,17 @@ if __name__ == '__main__':
         drive_Hs = jnp.einsum('d,dij->ij', drive_amps, H1)
         return H0 + drive_Hs
 
-    H_tc = jax.tree_util.Partial(H_func, envelope=envelope, ts=tsave)
+    H_tc = jtu.Partial(H_func, envelope=envelope, ts=tsave)
+
+    def update_fun(H, drive_params):
+        H_func = jtu.Partial(H, drive_params=drive_params)
+        return timecallable(H_func)
+
+    update_fun = jtu.Partial(update_fun)
 
     opt_params = grape(
         H_tc,
+        update_fun,
         initial_states=initial_states,
         target_states=final_states,
         tsave=tsave,
@@ -108,49 +89,51 @@ if __name__ == '__main__':
         init_params_to_save=parser_args.__dict__,
     )
 
-    if parser_args.plot:
-        finer_times = jnp.linspace(0.0, parser_args.time, 201)
-        drive_spline = _drive_spline(opt_params, envelope, tsave)
-        drive_amps = jnp.asarray(
-            [drive_spline.evaluate(t) for t in finer_times]
-        ).swapaxes(0, 1)
-        fig, ax = plt.subplots()
-        for drive_idx in range(len(H1)):
-            plt.plot(
-                finer_times,
-                drive_amps[drive_idx] / (2.0 * np.pi),
-                label=H1_labels[drive_idx],
-            )
-        ax.set_xlabel('time [ns]')
-        ax.set_ylabel('pulse amplitude [GHz]')
-        ax.legend()
-        plt.tight_layout()
-        plt.show()
-
-        H_func = partial(H_func, drive_params=opt_params, envelope=envelope, ts=tsave)
-        H_tc = timecallable(H_func)
-        plot_result = sesolve(
-            H_tc,
-            initial_states,
+    finer_times = jnp.linspace(0.0, parser_args.time, 201)
+    drive_spline = _drive_spline(opt_params, envelope, tsave)
+    drive_amps = jnp.asarray(
+        [drive_spline.evaluate(t) for t in finer_times]
+    ).swapaxes(0, 1)
+    fig, ax = plt.subplots()
+    for drive_idx in range(len(H1)):
+        plt.plot(
             finer_times,
-            exp_ops=[basis(dim, idx) @ dag(basis(dim, idx)) for idx in range(dim)],
-            options=options,
+            drive_amps[drive_idx] / (2.0 * np.pi),
+            label=H1_labels[drive_idx],
         )
-        init_labels = [
-            r'$|0\rangle$',
-            r'$|0\rangle+|1\rangle$',
-            r'$|0\rangle+i|1\rangle$',
-            r'$|1\rangle$',
-        ]
-        exp_labels = [r'$|0\rangle$', r'$|1\rangle$', r'$|2\rangle$', r'$|3\rangle$']
+    ax.set_xlabel('time [ns]')
+    ax.set_ylabel('pulse amplitude [GHz]')
+    ax.legend()
+    plt.tight_layout()
+    plt.show()
 
-        for state_idx in range(len(initial_states)):
-            fig, ax = plt.subplots()
-            expects = plot_result.expects[state_idx]
-            for e_result, label in zip(expects, exp_labels):
-                plt.plot(finer_times, e_result, label=label)
-            ax.legend()
-            ax.set_xlabel('time [ns]')
-            ax.set_ylabel('population')
-            ax.set_title(f'initial state={init_labels[state_idx]}')
-            plt.show()
+    H_func = partial(H_func, drive_params=opt_params, envelope=envelope, ts=tsave)
+    H_tc = timecallable(H_func)
+    plot_result = sesolve(
+        H_tc,
+        initial_states,
+        finer_times,
+        exp_ops=[basis(parser_args.dim, idx)
+                 @ dag(basis(parser_args.dim, idx))
+                 for idx in range(parser_args.dim)],
+        options=options,
+    )
+    init_labels = [
+        r'$|0\rangle$',
+        r'$|0\rangle+|1\rangle$',
+        r'$|0\rangle+i|1\rangle$',
+        r'$|1\rangle$',
+    ]
+    exp_labels = [r'$|0\rangle$', r'$|1\rangle$', r'$|2\rangle$', r'$|3\rangle$']
+
+    # for brevity only plot one initial state
+    state_idx_to_plot = 0
+    fig, ax = plt.subplots()
+    expects = plot_result.expects[state_idx_to_plot]
+    for e_result, label in zip(expects, exp_labels):
+        plt.plot(finer_times, e_result, label=label)
+    ax.legend()
+    ax.set_xlabel('time [ns]')
+    ax.set_ylabel('population')
+    ax.set_title(f'initial state={init_labels[state_idx_to_plot]}')
+    plt.show()
