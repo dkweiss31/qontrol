@@ -20,7 +20,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--Kerr", default=0.100, type=float, help="transmon Kerr in GHz"
     )
-    parser.add_argument("--max_amp", default=[0.1, 0.1], help="max drive amp in GHz")
     parser.add_argument("--dt", default=2.0, type=float, help="time step for controls")
     parser.add_argument("--time", default=30.0, type=float, help="gate time")
     parser.add_argument(
