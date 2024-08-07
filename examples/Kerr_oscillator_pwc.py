@@ -1,15 +1,14 @@
 import argparse
 
-import jax.lax as lax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import optax
-from dynamiqs import basis, dag, destroy, pwc
-from jax import Array
-import jax.tree_util as jtu
+from dynamiqs import basis, dag, destroy, pwc, sesolve
+from dynamiqs.solver import Tsit5
 
-from opt_dynamiqs import GRAPEOptions, all_cardinal_states, generate_file_path, grape
+from optamiqs import GRAPEOptions, all_cardinal_states, generate_file_path, grape, PulseOptimizer
+from optamiqs import IncoherentInfidelity, ForbiddenStates
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='GRAPE sim')
@@ -28,7 +27,7 @@ if __name__ == '__main__':
     tsave = jnp.linspace(0, parser_args.time, ntimes)
 
     options = GRAPEOptions(
-        save_states=False,
+        save_states=True,
         progress_meter=None,
     )
     a = destroy(dim)
@@ -38,12 +37,14 @@ if __name__ == '__main__':
 
     initial_states = [basis(dim, 0), basis(dim, 1)]
     final_states = [basis(dim, 1), basis(dim, 0)]
+    _forbidden_states = [basis(dim, idx) for idx in range(2, dim)]
 
     # need to form superpositions so that the phase information is correct
     if not options.coherent:
         initial_states = all_cardinal_states(initial_states)
         final_states = all_cardinal_states(final_states)
 
+    forbidden_states = len(initial_states) * _forbidden_states
     # initial guess for pwc pulses
     init_drive_params = -0.001 * jnp.ones((len(H1), ntimes - 1))
 
@@ -54,45 +55,35 @@ if __name__ == '__main__':
             H += pwc(tsave, values[idx], _H1)
         return H
 
-    # need to wrap it in Partial for jax reasons
-    H_pwc = jtu.Partial(H_pwc)
-    # tell the optimizer how to use the parameters we are optimizing to
-    # update the Hamiltonian
-    update_fun = jtu.Partial(lambda H, values: H(values))
-
+    pulse_optimizer = PulseOptimizer(H_pwc, lambda H, values: H(values))
+    costs = [IncoherentInfidelity(target_states=final_states, cost_multiplier=1.0),
+             # ForbiddenStates(forbidden_states=forbidden_states, cost_multiplier=1.0)
+             ]
+    res = sesolve(H_pwc(init_drive_params), initial_states, tsave,
+                  solver=Tsit5(max_steps=1_000_000_000), options=options)
+    print(res)
     opt_params = grape(
-        H_pwc,
-        update_fun,
+        pulse_optimizer,
         initial_states=initial_states,
-        target_states=final_states,
         tsave=tsave,
+        costs=costs,
         params_to_optimize=init_drive_params,
         filepath=filename,
         optimizer=optimizer,
         options=options,
+        solver=Tsit5(max_steps=1_000_000_000),
         init_params_to_save=parser_args.__dict__,
     )
 
-    # helper function for plotting pwc pulses
-    def plot_pwc(t, times, values):
-        def _zero(_: float) -> Array:
-            return jnp.zeros_like(values[..., 0])
-
-        def _pwc(t: float) -> Array:
-            idx = jnp.searchsorted(times, t, side='right') - 1
-            return values[..., idx]
-
-        return lax.cond(
-            jnp.logical_or(t < times[0], t >= times[-1]), _zero, _pwc, t
-        )
-
     # plot the pulse
     finer_times = jnp.linspace(0.0, parser_args.time, 201)
+    opt_H1s = [pwc(tsave, opt_params[drive_idx]/(2.0 * np.pi), _H1)
+               for drive_idx, _H1 in enumerate(H1)]
     fig, ax = plt.subplots()
     for drive_idx in range(len(H1)):
         plt.plot(
             finer_times,
-            [plot_pwc(t, tsave, opt_params[drive_idx] / (2.0 * np.pi)) for t in finer_times],
+            [opt_H1s[drive_idx].prefactor(t) for t in finer_times],
             label=H1_labels[drive_idx],
         )
     ax.set_xlabel('time [ns]')

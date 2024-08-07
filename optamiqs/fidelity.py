@@ -11,8 +11,8 @@ from dynamiqs import unit
 
 
 def _overlaps(computed_states: Array, target_states: Array) -> Array:
-    # s: batch over initial states, i: hilbert dim, d: size 1
-    return jnp.einsum('...sid,...sid->...s', jnp.conj(target_states), computed_states)
+    # i: hilbert dim, d: size 1
+    return jnp.einsum('...id,...id->...', jnp.conj(target_states), computed_states)
 
 
 def infidelity_coherent(computed_states: Array, target_states: Array) -> Array:

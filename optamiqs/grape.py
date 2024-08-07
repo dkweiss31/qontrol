@@ -13,21 +13,21 @@ from jax import Array
 from jaxtyping import ArrayLike
 from optax import GradientTransformation, TransformInitFn
 
-from .fidelity import infidelity_coherent, infidelity_incoherent
 from .file_io import save_and_print
 from .options import GRAPEOptions
+from .pulse_optimizer import PulseOptimizer
+from .cost import Cost
 
 __all__ = ['grape']
 
 
 def grape(
-    H_func: callable,
-    update_fun: callable,
+    pulse_optimizer: PulseOptimizer,
     initial_states: ArrayLike,
-    target_states: ArrayLike,
     tsave: ArrayLike,
     params_to_optimize: ArrayLike,
     *,
+    costs: list[Cost] = None,
     filepath: str = 'tmp.h5py',
     optimizer: GradientTransformation = optax.adam(0.1, b1=0.99, b2=0.99),  # noqa: B008
     solver: Solver = Tsit5(),  # noqa: B008
@@ -69,7 +69,6 @@ def grape(
     if init_params_to_save is None:
         init_params_to_save = {}
     initial_states = jnp.asarray(initial_states, dtype=cdtype())
-    target_states = jnp.asarray(target_states, dtype=cdtype())
     opt_state = optimizer.init(params_to_optimize)
     init_param_dict = options.__dict__ | {'tsave': tsave} | init_params_to_save
     print(f'saving results to {filepath}')
@@ -79,11 +78,10 @@ def grape(
             params_to_optimize, opt_state, infids = step(
                 params_to_optimize,
                 opt_state,
-                H_func,
-                update_fun,
+                pulse_optimizer,
                 initial_states,
-                target_states,
                 tsave,
+                costs,
                 solver,
                 options,
                 optimizer,
@@ -113,11 +111,10 @@ def grape(
 def step(
     params_to_optimize: Array,
     opt_state: TransformInitFn,
-    H_func: callable,
-    update_fun: callable,
+    pulse_optimizer: PulseOptimizer,
     initial_states: Array,
-    target_states: Array,
     tsave: Array,
+    costs: list[Cost],
     solver: Solver,
     options: GRAPEOptions,
     optimizer: GradientTransformation,
@@ -128,11 +125,10 @@ def step(
     """
     grads, infids = jax.grad(loss, has_aux=True)(
         params_to_optimize,
-        H_func,
-        update_fun,
+        pulse_optimizer,
         initial_states,
-        target_states,
         tsave,
+        costs,
         solver,
         options,
     )
@@ -143,23 +139,20 @@ def step(
 
 def loss(
     params_to_optimize: Array,
-    H_func: callable,
-    update_fun: callable,
+    pulse_optimizer: PulseOptimizer,
     initial_states: Array,
-    target_states: Array,
     tsave: Array,
+    costs: list[Cost],
     solver: Solver,
     options: GRAPEOptions,
 ) -> [float, Array]:
-    infid_func = infidelity_coherent if options.coherent else infidelity_incoherent
-    H = update_fun(H_func, params_to_optimize)
+    H = pulse_optimizer.update(params_to_optimize)
     results = dq.sesolve(H, initial_states, tsave, solver=solver, options=options)
     if options.save_states:
         final_states = results.states[..., -1, :, :]
     else:
         final_states = results.states
-    infids = infid_func(final_states, target_states)
-    if infids.ndim == 0:
-        # for saving purposes, want this to be an Array as opposed to a float
-        infids = infids[None]
-    return jnp.log(jnp.sum(infids)), infids
+    cost_values = [cost.evaluate(results.states, final_states, H) for cost in costs]
+    # assumption is that the zeroth entry in costs is the infidelity
+    infids = cost_values[0]
+    return jnp.log(jnp.sum(jnp.asarray(cost_values))), infids

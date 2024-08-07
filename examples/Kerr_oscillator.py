@@ -6,11 +6,12 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import optax
-from dynamiqs import basis, dag, destroy, sesolve, timecallable
+from dynamiqs import basis, dag, destroy, sesolve, timecallable, modulated
 from jax import Array
 import jax.tree_util as jtu
 
-from opt_dynamiqs import GRAPEOptions, all_cardinal_states, generate_file_path, grape
+from optamiqs import GRAPEOptions, all_cardinal_states, generate_file_path, grape, PulseOptimizer
+from optamiqs import IncoherentInfidelity, ForbiddenStates
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='GRAPE sim')
@@ -74,14 +75,15 @@ if __name__ == '__main__':
         H_func = jtu.Partial(H, drive_params=drive_params)
         return timecallable(H_func)
 
-    update_fun = jtu.Partial(update_fun)
+    pulse_optimizer = PulseOptimizer(H_tc, update_fun)
+
+    costs = [IncoherentInfidelity(target_states=final_states, cost_multiplier=1.0),]
 
     opt_params = grape(
-        H_tc,
-        update_fun,
+        pulse_optimizer,
         initial_states=initial_states,
-        target_states=final_states,
         tsave=tsave,
+        costs=costs,
         params_to_optimize=init_drive_params,
         filepath=filename,
         optimizer=optimizer,

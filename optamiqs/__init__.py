@@ -8,6 +8,8 @@ from .file_io import (
 )
 from .grape import grape
 from .options import GRAPEOptions
+from .pulse_optimizer import PulseOptimizer
+from .cost import IncoherentInfidelity, CoherentInfidelity, ForbiddenStates
 
 __all__ = [
     'grape',
@@ -20,4 +22,8 @@ __all__ = [
     'extract_info_from_h5',
     'save_and_print',
     'GRAPEOptions',
+    'PulseOptimizer',
+    'ForbiddenStates',
+    'IncoherentInfidelity',
+    'CoherentInfidelity',
 ]
