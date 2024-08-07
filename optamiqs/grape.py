@@ -100,11 +100,10 @@ def grape(
                 break
     except KeyboardInterrupt:
         print('terminated on keyboard interrupt')
-        print(f'all results saved to {filepath}')
-        return params_to_optimize
     else:
-        print(f'all results saved to {filepath}')
-        return params_to_optimize
+        print('reached maximum number of allowed epochs')
+    print(f'all results saved to {filepath}')
+    return params_to_optimize
 
 
 @partial(jax.jit, static_argnames=('solver', 'options', 'optimizer'))

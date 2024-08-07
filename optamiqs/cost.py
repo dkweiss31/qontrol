@@ -24,7 +24,7 @@ class IncoherentInfidelity(Cost):
         self.target_states = jnp.asarray(target_states, dtype=cdtype())
 
     def evaluate(self, states: Array, final_states: Array, time_array: TimeArray):
-        return infidelity_incoherent(
+        return self.cost_multiplier * infidelity_incoherent(
             final_states, self.target_states, average=True
         )[None]
 
@@ -38,7 +38,7 @@ class CoherentInfidelity(Cost):
 
     def evaluate(self, states: Array, final_states: Array, time_array: TimeArray):
         infid = infidelity_coherent(final_states, self.target_states)
-        return jnp.average(infid)[None]
+        return self.cost_multiplier * jnp.average(infid)[None]
 
 
 class ForbiddenStates(Cost):
@@ -59,10 +59,8 @@ class ForbiddenStates(Cost):
         states = jnp.moveaxis(states, -4, 0)
         forbidden_pops = 0.0
         for state_idx, state in enumerate(states):
-            jax.debug.breakpoint()
             unforbidden_pops = infidelity_incoherent(
                 state, self.forbidden_states[state_idx], average=False
             )
             forbidden_pops += jnp.mean(1 - unforbidden_pops)
-            jax.debug.breakpoint()
-        return forbidden_pops[None]
+        return self.cost_multiplier * forbidden_pops[None]

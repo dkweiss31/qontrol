@@ -2,11 +2,12 @@ import argparse
 from functools import partial
 
 import diffrax as dx
+import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import optax
-from dynamiqs import basis, dag, destroy, sesolve, timecallable, modulated
+from dynamiqs import basis, dag, destroy, sesolve, timecallable, modulated, sigmax, sigmay, sigmaz
 from jax import Array
 import jax.tree_util as jtu
 
@@ -15,19 +16,15 @@ from optamiqs import IncoherentInfidelity, ForbiddenStates
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='GRAPE sim')
-    parser.add_argument('--dim', default=4, type=int, help='tmon hilbert dim cutoff')
-    parser.add_argument(
-        '--Kerr', default=0.100, type=float, help='transmon Kerr in GHz'
-    )
     parser.add_argument('--dt', default=2.0, type=float, help='time step for controls')
     parser.add_argument('--time', default=30.0, type=float, help='gate time')
     parser.add_argument(
         '--ramp_nts', default=3, type=int, help='numper of points in ramps'
     )
     parser_args = parser.parse_args()
-    filename = generate_file_path('h5py', 'Kerr_tc', 'out')
+    filename = generate_file_path('h5py', 'qubit_modulated', 'out')
 
-    optimizer = optax.adam(learning_rate=0.0001, b1=0.999, b2=0.999)
+    optimizer = optax.adam(learning_rate=0.0001, b1=0.99, b2=0.99)
     ntimes = int(parser_args.time // parser_args.dt) + 1
     tsave = jnp.linspace(0, parser_args.time, ntimes)
 
@@ -36,56 +33,38 @@ if __name__ == '__main__':
     envelope = jnp.concatenate(
         (cos_ramp, jnp.ones(ntimes - 2 * parser_args.ramp_nts), jnp.flip(cos_ramp))
     )
-    options = GRAPEOptions(
-        save_states=True,
-        progress_meter=None,
-        target_fidelity=0.999,
-        epochs=4000,
-    )
-    a = destroy(parser_args.dim)
-    H0 = -0.5 * parser_args.Kerr * 2.0 * jnp.pi * dag(a) @ dag(a) @ a @ a
-    H1 = [a + dag(a), 1j * (a - dag(a))]
-    H1_labels = ['I', 'Q']
+    H0 = 0.0 * sigmaz()
+    H1s = [sigmax(), sigmay()]
+    H1_labels = ['X', 'Y']
 
-    initial_states = [basis(parser_args.dim, 0), basis(parser_args.dim, 1)]
-    final_states = [basis(parser_args.dim, 1), basis(parser_args.dim, 0)]
-    _forbidden_states = [basis(parser_args.dim, idx)
-                         for idx in range(2, parser_args.dim)]
+    initial_states = [basis(2, 0), basis(2, 1)]
+    final_states = [1j * basis(2, 1), -1j * basis(2, 0)]
 
     # need to form superpositions so that the phase information is correct
-    if not options.coherent:
-        initial_states = all_cardinal_states(initial_states)
-        final_states = all_cardinal_states(final_states)
+    initial_states = all_cardinal_states(initial_states)
+    final_states = all_cardinal_states(final_states)
 
-    forbidden_states = len(initial_states) * _forbidden_states
-    init_drive_params = 0.001 * jnp.ones((len(H1), ntimes))
+    init_drive_params = {"dp": 0.001 * jnp.ones((len(H1s), ntimes))}
 
     def _drive_spline(
         drive_params: Array, envelope: Array, ts: Array
     ) -> dx.CubicInterpolation:
         # note swap of axes so that time axis is first
-        drive_w_envelope = jnp.einsum('t,dt->td', envelope, drive_params)
+        drive_w_envelope = jnp.einsum('t,...t->t...', envelope, drive_params)
         drive_coeffs = dx.backward_hermite_coefficients(ts, drive_w_envelope)
         return dx.CubicInterpolation(ts, drive_coeffs)
 
-    def H_func(t: float, drive_params: Array, envelope: Array, ts: Array) -> Array:
-        drive_spline = _drive_spline(drive_params, envelope, ts)
-        drive_amps = drive_spline.evaluate(t)
-        drive_Hs = jnp.einsum('d,dij->ij', drive_amps, H1)
-        return H0 + drive_Hs
+    def H_func(drive_params_dict: Array) -> Array:
+        drive_params = drive_params_dict["dp"]
+        H = H0
+        for H1, drive_param in zip(H1s, drive_params):
+            drive_spline = _drive_spline(drive_param, envelope, tsave)
+            H += modulated(drive_spline.evaluate, H1)
+        return H
 
-    H_tc = jtu.Partial(H_func, envelope=envelope, ts=tsave)
+    pulse_optimizer = PulseOptimizer(H_func, lambda H, dp: H(dp))
 
-    def update_fun(H, drive_params):
-        H_func = jtu.Partial(H, drive_params=drive_params)
-        return timecallable(H_func)
-
-    pulse_optimizer = PulseOptimizer(H_tc, update_fun)
-
-    costs = [
-        IncoherentInfidelity(target_states=final_states, cost_multiplier=1.0),
-        ForbiddenStates(forbidden_states=forbidden_states, cost_multiplier=5.0),
-    ]
+    costs = [IncoherentInfidelity(target_states=final_states, cost_multiplier=1.0), ]
 
     opt_params = grape(
         pulse_optimizer,
@@ -95,17 +74,17 @@ if __name__ == '__main__':
         params_to_optimize=init_drive_params,
         filepath=filename,
         optimizer=optimizer,
-        options=options,
+        options=GRAPEOptions(progress_meter=None),
         init_params_to_save=parser_args.__dict__,
     )
 
     finer_times = jnp.linspace(0.0, parser_args.time, 201)
-    drive_spline = _drive_spline(opt_params, envelope, tsave)
+    drive_spline = _drive_spline(opt_params["dp"], envelope, tsave)
     drive_amps = jnp.asarray(
         [drive_spline.evaluate(t) for t in finer_times]
     ).swapaxes(0, 1)
     fig, ax = plt.subplots()
-    for drive_idx in range(len(H1)):
+    for drive_idx in range(len(H1s)):
         plt.plot(
             finer_times,
             drive_amps[drive_idx] / (2.0 * np.pi),
@@ -117,24 +96,20 @@ if __name__ == '__main__':
     plt.tight_layout()
     plt.show()
 
-    H_func = partial(H_func, drive_params=opt_params, envelope=envelope, ts=tsave)
-    H_tc = timecallable(H_func)
+    H = H_func(drive_params_dict=opt_params)
     plot_result = sesolve(
-        H_tc,
+        H,
         initial_states,
         finer_times,
-        exp_ops=[basis(parser_args.dim, idx)
-                 @ dag(basis(parser_args.dim, idx))
-                 for idx in range(parser_args.dim)],
-        options=options,
+        exp_ops=[basis(2, idx) @ dag(basis(2, idx)) for idx in range(2)],
     )
     init_labels = [
         r'$|0\rangle$',
+        r'$|1\rangle$',
         r'$|0\rangle+|1\rangle$',
         r'$|0\rangle+i|1\rangle$',
-        r'$|1\rangle$',
     ]
-    exp_labels = [r'$|0\rangle$', r'$|1\rangle$', r'$|2\rangle$', r'$|3\rangle$']
+    exp_labels = [r'$|0\rangle$', r'$|1\rangle$']
 
     # for brevity only plot one initial state
     state_idx_to_plot = 0
