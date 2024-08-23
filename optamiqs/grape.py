@@ -147,11 +147,8 @@ def loss(
 ) -> [float, Array]:
     H = pulse_optimizer.update(params_to_optimize)
     results = dq.sesolve(H, initial_states, tsave, solver=solver, options=options)
-    if options.save_states:
-        final_states = results.states[..., -1, :, :]
-    else:
-        final_states = results.states
-    cost_values = [cost.evaluate(results.states, final_states, H) for cost in costs]
-    # assumption is that the zeroth entry in costs is the infidelity
+    cost_values = [cost.evaluate(results, H) for cost in costs]
+    # assumption is that the zeroth entry in costs is the infidelity,
+    # which we print out so that the optimization can be monitored
     infids = cost_values[0]
-    return jnp.log(jnp.sum(jnp.asarray(cost_values))), infids
+    return jnp.log(jnp.sum(jnp.asarray(cost_values))), infids[None]

@@ -15,12 +15,12 @@ from optamiqs import IncoherentInfidelity, ForbiddenStates
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='GRAPE sim')
-    parser.add_argument('--dim', default=4, type=int, help='tmon hilbert dim cutoff')
+    parser.add_argument('--dim', default=5, type=int, help='tmon hilbert dim cutoff')
     parser.add_argument(
         '--Kerr', default=0.100, type=float, help='transmon Kerr in GHz'
     )
     parser.add_argument('--dt', default=2.0, type=float, help='time step for controls')
-    parser.add_argument('--time', default=30.0, type=float, help='gate time')
+    parser.add_argument('--time', default=14.0, type=float, help='gate time')
     parser.add_argument(
         '--ramp_nts', default=3, type=int, help='numper of points in ramps'
     )
@@ -39,8 +39,8 @@ if __name__ == '__main__':
     options = GRAPEOptions(
         save_states=True,
         progress_meter=None,
-        target_fidelity=0.999,
-        epochs=4000,
+        target_fidelity=0.995,
+        epochs=10000,
     )
     a = destroy(parser_args.dim)
     H0 = -0.5 * parser_args.Kerr * 2.0 * jnp.pi * dag(a) @ dag(a) @ a @ a
@@ -57,7 +57,7 @@ if __name__ == '__main__':
         initial_states = all_cardinal_states(initial_states)
         final_states = all_cardinal_states(final_states)
 
-    forbidden_states = len(initial_states) * _forbidden_states
+    forbidden_states = len(initial_states) * [_forbidden_states,]
     init_drive_params = 0.001 * jnp.ones((len(H1), ntimes))
 
     def _drive_spline(
