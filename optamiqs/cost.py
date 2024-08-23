@@ -5,7 +5,7 @@ from jaxtyping import ArrayLike
 
 from dynamiqs._utils import cdtype
 from dynamiqs import TimeArray
-from dynamiqs.time_array import SummedTimeArray, PWCTimeArray, ModulatedTimeArray
+from dynamiqs.time_array import SummedTimeArray
 from dynamiqs.result import Result
 from .fidelity import infidelity_incoherent, infidelity_coherent
 
@@ -86,17 +86,19 @@ class ControlNorm(Cost):
 
     def evaluate(self, result: Result, H: TimeArray):
 
-        def _extract_amplitudes(_H, amplitude_func_list):
-            if isinstance(_H, SummedTimeArray):
-                for __H in _H:
-                    amplitude_func_list = _extract_amplitudes(__H, amplitude_func_list)
-            elif isinstance(_H, (ModulatedTimeArray, PWCTimeArray)):
-                amplitude_func_list.append(_H.prefactor)
-                return amplitude_func_list
+        def _evaluate_at_tsave(_H):
+            if hasattr(_H, "prefactor"):
+                return jnp.sum(vmap(_H.prefactor)(result.tsave) ** 2)
             else:
-                return amplitude_func_list
+                return jnp.array(0.0)
 
-        amplitude_func_list = _extract_amplitudes(H, [])
-        control_amps = [vmap(H_func)(result.tsave) for H_func in amplitude_func_list]
-        control_norms = jnp.sum([amp**2 for amp in control_amps])
-        return self.cost_multiplier * control_norms
+        if isinstance(H, SummedTimeArray):
+            control_norm = 0.0
+            # ugly for loop, having trouble with vmap or scan because only PWCTimeArray
+            # and ModulatedTimeArray have attributes prefactor
+            for timearray in H.timearrays:
+                control_norm += jnp.sum(vmap(_evaluate_at_tsave)(timearray))
+        else:
+            control_norm = _evaluate_at_tsave(H)
+
+        return self.cost_multiplier * control_norm

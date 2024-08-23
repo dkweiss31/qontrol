@@ -1,18 +1,15 @@
 import argparse
-from functools import partial
 
 import diffrax as dx
-import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import optax
-from dynamiqs import basis, dag, destroy, sesolve, timecallable, modulated, sigmax, sigmay, sigmaz
+from dynamiqs import basis, dag, sesolve, modulated, sigmax, sigmay, sigmaz
 from jax import Array
-import jax.tree_util as jtu
 
 from optamiqs import GRAPEOptions, all_cardinal_states, generate_file_path, grape, PulseOptimizer
-from optamiqs import IncoherentInfidelity, ForbiddenStates
+from optamiqs import IncoherentInfidelity, ControlNorm
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='GRAPE sim')
@@ -64,7 +61,9 @@ if __name__ == '__main__':
 
     pulse_optimizer = PulseOptimizer(H_func, lambda H, dp: H(dp))
 
-    costs = [IncoherentInfidelity(target_states=final_states, cost_multiplier=1.0), ]
+    costs = [IncoherentInfidelity(target_states=final_states, cost_multiplier=1.0),
+             ControlNorm(cost_multiplier=1.0),
+             ]
 
     opt_params = grape(
         pulse_optimizer,

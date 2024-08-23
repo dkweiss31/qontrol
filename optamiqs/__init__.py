@@ -9,7 +9,7 @@ from .file_io import (
 from .grape import grape
 from .options import GRAPEOptions
 from .pulse_optimizer import PulseOptimizer
-from .cost import IncoherentInfidelity, CoherentInfidelity, ForbiddenStates
+from .cost import IncoherentInfidelity, CoherentInfidelity, ForbiddenStates, ControlNorm
 
 __all__ = [
     'grape',
@@ -26,4 +26,5 @@ __all__ = [
     'ForbiddenStates',
     'IncoherentInfidelity',
     'CoherentInfidelity',
+    'ControlNorm'
 ]
