@@ -79,26 +79,39 @@ class ForbiddenStates(Cost):
         return self.cost_multiplier * forbidden_pops
 
 
-class ControlNorm(Cost):
+class Control(Cost):
 
     def __init__(self, *args, **kwargs):
+        # TODO allow weighting for different Hamiltonian controls
         super().__init__(*args, **kwargs)
 
-    def evaluate(self, result: Result, H: TimeArray):
+    def evaluate_controls(self, result: Result, H: TimeArray, func):
 
         def _evaluate_at_tsave(_H):
             if hasattr(_H, "prefactor"):
-                return jnp.sum(vmap(_H.prefactor)(result.tsave) ** 2)
+                return jnp.sum(func(vmap(_H.prefactor)(result.tsave)))
             else:
                 return jnp.array(0.0)
 
         if isinstance(H, SummedTimeArray):
-            control_norm = 0.0
+            control_val = 0.0
             # ugly for loop, having trouble with vmap or scan because only PWCTimeArray
             # and ModulatedTimeArray have attributes prefactor
             for timearray in H.timearrays:
-                control_norm += jnp.sum(vmap(_evaluate_at_tsave)(timearray))
+                control_val += jnp.sum(vmap(_evaluate_at_tsave)(timearray))
         else:
-            control_norm = _evaluate_at_tsave(H)
+            control_val = _evaluate_at_tsave(H)
 
-        return self.cost_multiplier * control_norm
+        return self.cost_multiplier * control_val
+
+
+class ControlNorm(Control):
+
+    def evaluate(self, result: Result, H: TimeArray):
+        return self.evaluate_controls(result, H, lambda x: x ** 2)
+
+
+class ControlArea(Control):
+
+    def evaluate(self, result: Result, H: TimeArray):
+        return self.evaluate_controls(result, H, lambda x: x)
