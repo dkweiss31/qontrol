@@ -18,8 +18,6 @@ from .options import GRAPEOptions
 from .pulse_optimizer import PulseOptimizer
 from .cost import Cost
 
-__all__ = ['grape']
-
 
 def grape(
     pulse_optimizer: PulseOptimizer,
@@ -147,6 +145,8 @@ def loss(
 ) -> [float, Array]:
     H = pulse_optimizer.update(params_to_optimize)
     results = dq.sesolve(H, initial_states, tsave, solver=solver, options=options)
+    # manual looping here becuase costs is a list of classes, not straightforward to
+    # call vmap on
     cost_values = [cost.evaluate(results, H) for cost in costs]
     # assumption is that the zeroth entry in costs is the infidelity,
     # which we print out so that the optimization can be monitored

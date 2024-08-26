@@ -1,5 +1,6 @@
 import equinox as eqx
 from jax import Array, vmap
+import jax
 import jax.numpy as jnp
 from jaxtyping import ArrayLike
 
@@ -115,3 +116,14 @@ class ControlArea(Control):
 
     def evaluate(self, result: Result, H: TimeArray):
         return self.evaluate_controls(result, H, lambda x: x)
+
+
+class CustumCost(Control):
+    cost_fun: callable
+
+    def __init__(self, cost_fun: callable, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.cost_fun = jax.tree_util.Partial(cost_fun)
+
+    def evaluate(self, result: Result, H: TimeArray):
+        return self.cost_fun(result, H)

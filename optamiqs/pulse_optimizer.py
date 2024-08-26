@@ -2,9 +2,6 @@ import equinox as eqx
 import jax.tree_util as jtu
 
 
-__all__ = ["PulseOptimizer"]
-
-
 class PulseOptimizer(eqx.Module):
     """ Tell the optimizer how to use the parameters we are optimizing to update the Hamiltonian.
     """

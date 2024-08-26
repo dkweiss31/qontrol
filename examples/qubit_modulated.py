@@ -9,7 +9,7 @@ from dynamiqs import basis, dag, sesolve, modulated, sigmax, sigmay, sigmaz
 from jax import Array
 
 from optamiqs import GRAPEOptions, all_cardinal_states, generate_file_path, grape, PulseOptimizer
-from optamiqs import IncoherentInfidelity, ControlNorm
+from optamiqs import IncoherentInfidelity, ControlNorm, ControlArea
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='GRAPE sim')
@@ -63,6 +63,7 @@ if __name__ == '__main__':
 
     costs = [IncoherentInfidelity(target_states=final_states, cost_multiplier=1.0),
              ControlNorm(cost_multiplier=1.0),
+             # ControlArea(cost_multiplier=1.0),
              ]
 
     opt_params = grape(
@@ -73,7 +74,7 @@ if __name__ == '__main__':
         params_to_optimize=init_drive_params,
         filepath=filename,
         optimizer=optimizer,
-        options=GRAPEOptions(progress_meter=None),
+        options=GRAPEOptions(progress_meter=None, epochs=4000),
         init_params_to_save=parser_args.__dict__,
     )
 
