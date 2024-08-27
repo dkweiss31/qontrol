@@ -41,7 +41,7 @@ if __name__ == '__main__':
     initial_states = all_cardinal_states(initial_states)
     final_states = all_cardinal_states(final_states)
 
-    init_drive_params = {"dp": 0.001 * jnp.ones((len(H1s), ntimes))}
+    init_drive_params = 0.001 * jnp.ones((len(H1s), ntimes))
 
     def _drive_spline(
         drive_params: Array, envelope: Array, ts: Array
@@ -51,25 +51,25 @@ if __name__ == '__main__':
         drive_coeffs = dx.backward_hermite_coefficients(ts, drive_w_envelope)
         return dx.CubicInterpolation(ts, drive_coeffs)
 
-    def H_func(drive_params_dict: Array) -> Array:
-        drive_params = drive_params_dict["dp"]
+    def H_func(drive_params: Array) -> Array:
         H = H0
         for H1, drive_param in zip(H1s, drive_params):
             drive_spline = _drive_spline(drive_param, envelope, tsave)
             H += modulated(drive_spline.evaluate, H1)
         return H
 
-    pulse_optimizer = PulseOptimizer(H_func, lambda H, dp: H(dp))
+    pulse_optimizer = PulseOptimizer(
+        H_func,
+        update_function=lambda _H, _dp: (_H(_dp), tsave),
+    )
 
     costs = [IncoherentInfidelity(target_states=final_states, cost_multiplier=1.0),
-             ControlNorm(cost_multiplier=1.0),
-             # ControlArea(cost_multiplier=1.0),
+             # ControlNorm(cost_multiplier=1.0),
              ]
 
     opt_params = grape(
         pulse_optimizer,
         initial_states=initial_states,
-        tsave=tsave,
         costs=costs,
         params_to_optimize=init_drive_params,
         filepath=filename,
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     )
 
     finer_times = jnp.linspace(0.0, parser_args.time, 201)
-    drive_spline = _drive_spline(opt_params["dp"], envelope, tsave)
+    drive_spline = _drive_spline(opt_params, envelope, tsave)
     drive_amps = jnp.asarray(
         [drive_spline.evaluate(t) for t in finer_times]
     ).swapaxes(0, 1)
@@ -96,7 +96,7 @@ if __name__ == '__main__':
     plt.tight_layout()
     plt.show()
 
-    H = H_func(drive_params_dict=opt_params)
+    H = H_func(drive_params=opt_params)
     plot_result = sesolve(
         H,
         initial_states,

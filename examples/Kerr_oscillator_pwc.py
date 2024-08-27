@@ -8,7 +8,7 @@ from dynamiqs import basis, dag, destroy, pwc, sesolve
 from dynamiqs.solver import Tsit5
 
 from optamiqs import GRAPEOptions, all_cardinal_states, generate_file_path, grape, PulseOptimizer
-from optamiqs import IncoherentInfidelity, ForbiddenStates
+from optamiqs import IncoherentInfidelity
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='GRAPE sim')
@@ -26,6 +26,7 @@ if __name__ == '__main__':
     ntimes = int(parser_args.time // parser_args.dt) + 1
     tsave = jnp.linspace(0, parser_args.time, ntimes)
 
+    # TODO not working now because of the pwc bug for save_states=True
     options = GRAPEOptions(
         save_states=True,
         progress_meter=None,
@@ -37,14 +38,12 @@ if __name__ == '__main__':
 
     initial_states = [basis(dim, 0), basis(dim, 1)]
     final_states = [basis(dim, 1), basis(dim, 0)]
-    _forbidden_states = [basis(dim, idx) for idx in range(2, dim)]
 
     # need to form superpositions so that the phase information is correct
     if not options.coherent:
         initial_states = all_cardinal_states(initial_states)
         final_states = all_cardinal_states(final_states)
 
-    forbidden_states = len(initial_states) * _forbidden_states
     # initial guess for pwc pulses
     init_drive_params = -0.001 * jnp.ones((len(H1), ntimes - 1))
 
@@ -55,17 +54,14 @@ if __name__ == '__main__':
             H += pwc(tsave, values[idx], _H1)
         return H
 
-    pulse_optimizer = PulseOptimizer(H_pwc, lambda H, values: H(values))
-    costs = [IncoherentInfidelity(target_states=final_states, cost_multiplier=1.0),
-             # ForbiddenStates(forbidden_states=forbidden_states, cost_multiplier=1.0)
-             ]
-    res = sesolve(H_pwc(init_drive_params), initial_states, tsave,
-                  solver=Tsit5(max_steps=1_000_000_000), options=options)
-    print(res)
+    pulse_optimizer = PulseOptimizer(
+        H_pwc, update_function=lambda _H, _dp: (_H(_dp), tsave)
+    )
+    costs = [IncoherentInfidelity(target_states=final_states, cost_multiplier=1.0), ]
+
     opt_params = grape(
         pulse_optimizer,
         initial_states=initial_states,
-        tsave=tsave,
         costs=costs,
         params_to_optimize=init_drive_params,
         filepath=filename,

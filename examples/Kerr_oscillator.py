@@ -57,8 +57,11 @@ if __name__ == '__main__':
         initial_states = all_cardinal_states(initial_states)
         final_states = all_cardinal_states(final_states)
 
-    forbidden_states = len(initial_states) * [_forbidden_states,]
-    init_drive_params = 0.001 * jnp.ones((len(H1), ntimes))
+    forbidden_states = len(initial_states) * [_forbidden_states, ]
+    init_drive_params = {
+        "dp": -0.001 * jnp.ones((len(H1), ntimes)),
+        "t": tsave[-1],
+    }
 
     def _drive_spline(
         drive_params: Array, envelope: Array, ts: Array
@@ -68,19 +71,20 @@ if __name__ == '__main__':
         drive_coeffs = dx.backward_hermite_coefficients(ts, drive_w_envelope)
         return dx.CubicInterpolation(ts, drive_coeffs)
 
-    def H_func(t: float, drive_params: Array, envelope: Array, ts: Array) -> Array:
-        drive_spline = _drive_spline(drive_params, envelope, ts)
+    def H_func(t: float, drive_params_dict: Array) -> Array:
+        drive_params = drive_params_dict["dp"]
+        new_tsave = jnp.linspace(0.0, drive_params_dict["t"], len(tsave))
+        drive_spline = _drive_spline(drive_params, envelope, new_tsave)
         drive_amps = drive_spline.evaluate(t)
         drive_Hs = jnp.einsum('d,dij->ij', drive_amps, H1)
         return H0 + drive_Hs
 
-    H_tc = jtu.Partial(H_func, envelope=envelope, ts=tsave)
+    def update_function(H, drive_params_dict):
+        new_tsave = jnp.linspace(0.0, drive_params_dict["t"], len(tsave))
+        new_H = jtu.Partial(H, drive_params_dict=drive_params_dict)
+        return timecallable(new_H), new_tsave
 
-    def update_fun(H, drive_params):
-        H_func = jtu.Partial(H, drive_params=drive_params)
-        return timecallable(H_func)
-
-    pulse_optimizer = PulseOptimizer(H_tc, update_fun)
+    pulse_optimizer = PulseOptimizer(H_func, update_function)
 
     costs = [
         IncoherentInfidelity(target_states=final_states, cost_multiplier=1.0),
@@ -90,7 +94,6 @@ if __name__ == '__main__':
     opt_params = grape(
         pulse_optimizer,
         initial_states=initial_states,
-        tsave=tsave,
         costs=costs,
         params_to_optimize=init_drive_params,
         filepath=filename,
@@ -99,8 +102,8 @@ if __name__ == '__main__':
         init_params_to_save=parser_args.__dict__,
     )
 
-    finer_times = jnp.linspace(0.0, parser_args.time, 201)
-    drive_spline = _drive_spline(opt_params, envelope, tsave)
+    finer_times = jnp.linspace(0.0, opt_params["t"], 201)
+    drive_spline = _drive_spline(opt_params["dp"], envelope, tsave)
     drive_amps = jnp.asarray(
         [drive_spline.evaluate(t) for t in finer_times]
     ).swapaxes(0, 1)
@@ -117,7 +120,7 @@ if __name__ == '__main__':
     plt.tight_layout()
     plt.show()
 
-    H_func = partial(H_func, drive_params=opt_params, envelope=envelope, ts=tsave)
+    H_func = partial(H_func, drive_params_dict=opt_params)
     H_tc = timecallable(H_func)
     plot_result = sesolve(
         H_tc,

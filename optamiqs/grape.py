@@ -22,7 +22,6 @@ from .cost import Cost
 def grape(
     pulse_optimizer: PulseOptimizer,
     initial_states: ArrayLike,
-    tsave: ArrayLike,
     params_to_optimize: ArrayLike,
     *,
     costs: list[Cost] = None,
@@ -66,9 +65,17 @@ def grape(
     """
     if init_params_to_save is None:
         init_params_to_save = {}
+    if not options.save_states:
+        raise ValueError(
+            "save_states must be set to true for GRAPE optimization. If you are worried"
+            "about excess memory usage, you can specify that the tsave passed to sesolve"
+            "only has two elements in it, e.g. tsave=(0, t). That is to say, the control"
+            "tsave need not be the same as the tsave for saving states."
+        )
     initial_states = jnp.asarray(initial_states, dtype=cdtype())
     opt_state = optimizer.init(params_to_optimize)
-    init_param_dict = options.__dict__ | {'tsave': tsave} | init_params_to_save
+    _, init_tsave = pulse_optimizer.update(params_to_optimize)
+    init_param_dict = options.__dict__ | {'tsave': init_tsave} | init_params_to_save
     print(f'saving results to {filepath}')
     try:  # trick for catching keyboard interrupt
         for epoch in range(options.epochs):
@@ -78,7 +85,6 @@ def grape(
                 opt_state,
                 pulse_optimizer,
                 initial_states,
-                tsave,
                 costs,
                 solver,
                 options,
@@ -110,7 +116,6 @@ def step(
     opt_state: TransformInitFn,
     pulse_optimizer: PulseOptimizer,
     initial_states: Array,
-    tsave: Array,
     costs: list[Cost],
     solver: Solver,
     options: GRAPEOptions,
@@ -124,7 +129,6 @@ def step(
         params_to_optimize,
         pulse_optimizer,
         initial_states,
-        tsave,
         costs,
         solver,
         options,
@@ -138,12 +142,11 @@ def loss(
     params_to_optimize: Array,
     pulse_optimizer: PulseOptimizer,
     initial_states: Array,
-    tsave: Array,
     costs: list[Cost],
     solver: Solver,
     options: GRAPEOptions,
 ) -> [float, Array]:
-    H = pulse_optimizer.update(params_to_optimize)
+    H, tsave = pulse_optimizer.update(params_to_optimize)
     results = dq.sesolve(H, initial_states, tsave, solver=solver, options=options)
     # manual looping here becuase costs is a list of classes, not straightforward to
     # call vmap on
