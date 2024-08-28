@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import equinox as eqx
 from jax import Array, vmap
 import jax
@@ -11,8 +13,23 @@ from dynamiqs.result import Result
 from .fidelity import infidelity_incoherent, infidelity_coherent
 
 
-class Cost(eqx.Module):
+def incoherent_infidelity(
+    target_states: ArrayLike,
     cost_multiplier: float = 1.0
+) -> IncoherentInfidelity:
+    r"""Instantiate the cost function for calculating infidelity incoherently.
+
+    This infidelity is defined as
+    $$
+        F_{\rm incoherent} = \sum_{k}|\langle\psi_{t}^{k}|U(\vec{\epsilon})|\psi_{i}^{k}\rangle|^2
+    $$
+    """
+    target_states = jnp.asarray(target_states, dtype=cdtype())
+    return IncoherentInfidelity(target_states, cost_multiplier)
+
+
+class Cost(eqx.Module):
+    cost_multiplier: float
 
     def evaluate(self, result: Result, H: TimeArray):
         raise NotImplementedError
@@ -27,9 +44,13 @@ class IncoherentInfidelity(Cost):
 
     def evaluate(self, result: Result, H: TimeArray):
         final_states = result.states[..., -1, :, :]
-        return self.cost_multiplier * infidelity_incoherent(
-            final_states, self.target_states, average=True
+        overlaps = jnp.einsum(
+            'sid,...sid->...s', jnp.conj(self.target_states), final_states
         )
+        # square before summing
+        overlaps_sq = jnp.real(jnp.abs(overlaps * jnp.conj(overlaps)))
+        infid = 1 - jnp.mean(overlaps_sq)
+        return self.cost_multiplier * infid
 
 
 class CoherentInfidelity(Cost):
@@ -41,8 +62,15 @@ class CoherentInfidelity(Cost):
 
     def evaluate(self, result: Result, H: TimeArray):
         final_states = result.states[..., -1, :, :]
-        infid = infidelity_coherent(final_states, self.target_states)
-        return self.cost_multiplier * jnp.average(infid)
+        overlaps = jnp.einsum(
+            'sid,...sid->...s', jnp.conj(self.target_states), final_states
+        )
+        # sum before squaring
+        overlaps_avg = jnp.mean(overlaps, axis=-1)
+        fids = jnp.abs(overlaps_avg * jnp.conj(overlaps_avg))
+        # average over any remaining batch dimensions
+        infid = 1 - jnp.mean(fids)
+        return self.cost_multiplier * infid
 
 
 class ForbiddenStates(Cost):

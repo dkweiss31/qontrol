@@ -78,7 +78,8 @@ def grape(
             "tsave need not be the same as the tsave for saving states."
         )
     initial_states = jnp.asarray(initial_states, dtype=cdtype())
-    jump_ops = [_astimearray(L) for L in jump_ops]
+    if jump_ops is not None:
+        jump_ops = [_astimearray(L) for L in jump_ops]
     exp_ops = jnp.asarray(exp_ops, dtype=cdtype()) if exp_ops is not None else None
     opt_state = optimizer.init(params_to_optimize)
     _, init_tsave = pulse_optimizer.update(params_to_optimize)
