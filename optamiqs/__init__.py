@@ -17,6 +17,8 @@ __all__ = [
     'extract_info_from_h5',
     'infidelity_coherent',
     'infidelity_incoherent',
+    'incoherent_infidelity',
+    'coherent_infidelity',
     'all_cardinal_states',
     "IncoherentInfidelity",
     "CoherentInfidelity",

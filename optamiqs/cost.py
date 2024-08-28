@@ -28,6 +28,21 @@ def incoherent_infidelity(
     return IncoherentInfidelity(target_states, cost_multiplier)
 
 
+def coherent_infidelity(
+    target_states: ArrayLike,
+    cost_multiplier: float = 1.0
+) -> CoherentInfidelity:
+    r"""Instantiate the cost function for calculating infidelity coherently.
+
+    This infidelity is defined as
+    $$
+        F_{\rm incoherent} = |\sum_{k}\langle\psi_{t}^{k}|U(\vec{\epsilon})|\psi_{i}^{k}\rangle|^2
+    $$
+    """
+    target_states = jnp.asarray(target_states, dtype=cdtype())
+    return CoherentInfidelity(target_states, cost_multiplier)
+
+
 class Cost(eqx.Module):
     cost_multiplier: float
 
