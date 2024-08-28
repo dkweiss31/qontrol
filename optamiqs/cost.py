@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from jaxtyping import ArrayLike
 
 from dynamiqs._utils import cdtype
-from dynamiqs import TimeArray
+from dynamiqs import TimeArray, unit
 from dynamiqs.time_array import SummedTimeArray
 from dynamiqs.result import Result
 from .fidelity import infidelity_incoherent, infidelity_coherent
@@ -116,6 +116,49 @@ class ControlArea(Control):
 
     def evaluate(self, result: Result, H: TimeArray):
         return self.evaluate_controls(result, H, lambda x: x)
+
+
+class MCInfidelity(Cost):
+    target_states: ArrayLike
+    target_states_traj: ArrayLike
+    coherent: bool
+    no_jump_weight: float
+    jump_weight: float
+    infid_func: callable
+
+    def __init__(
+        self,
+        target_states,
+        target_states_traj,
+        coherent=False,
+        no_jump_weight=1.0,
+        jump_weight=1.0,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.target_states = jnp.asarray(target_states, dtype=cdtype())
+        self.target_states_traj = jnp.asarray(target_states_traj, dtype=cdtype())
+        if coherent:
+            self.infid_func = jax.tree_util.Partial(infidelity_coherent)
+        else:
+            self.infid_func = jax.tree_util.Partial(infidelity_incoherent)
+        self.coherent = coherent
+        self.no_jump_weight = no_jump_weight
+        self.jump_weight = jump_weight
+
+    def evaluate(self, result: Result, H: TimeArray):
+        final_jump_states = unit(result.final_jump_states).swapaxes(-4, -3)
+        final_no_jump_states = unit(result.final_no_jump_state)
+        infids_jump = self.infid_func(
+            final_jump_states, self.target_states_traj
+        )
+        infids_no_jump = self.infid_func(
+            final_no_jump_states, self.target_states
+        )
+        infid = (self.jump_weight * jnp.mean(infids_jump)
+                 + self.no_jump_weight * jnp.mean(infids_no_jump))
+        return self.cost_multiplier * infid
 
 
 class CustumCost(Control):

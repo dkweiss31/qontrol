@@ -12,6 +12,9 @@ from dynamiqs.solver import Solver, Tsit5
 from jax import Array
 from jaxtyping import ArrayLike
 from optax import GradientTransformation, TransformInitFn
+from jaxtyping import ArrayLike
+from dynamiqs.integrators._utils import _astimearray
+from jax.random import PRNGKey
 
 from .file_io import save_and_print
 from .options import GRAPEOptions
@@ -25,6 +28,8 @@ def grape(
     params_to_optimize: ArrayLike,
     *,
     costs: list[Cost] = None,
+    jump_ops: list[ArrayLike] = None,
+    exp_ops: list[ArrayLike] = None,
     filepath: str = 'tmp.h5py',
     optimizer: GradientTransformation = optax.adam(0.1, b1=0.99, b2=0.99),  # noqa: B008
     solver: Solver = Tsit5(),  # noqa: B008
@@ -73,6 +78,8 @@ def grape(
             "tsave need not be the same as the tsave for saving states."
         )
     initial_states = jnp.asarray(initial_states, dtype=cdtype())
+    jump_ops = [_astimearray(L) for L in jump_ops]
+    exp_ops = jnp.asarray(exp_ops, dtype=cdtype()) if exp_ops is not None else None
     opt_state = optimizer.init(params_to_optimize)
     _, init_tsave = pulse_optimizer.update(params_to_optimize)
     init_param_dict = options.__dict__ | {'tsave': init_tsave} | init_params_to_save
@@ -86,6 +93,8 @@ def grape(
                 pulse_optimizer,
                 initial_states,
                 costs,
+                jump_ops,
+                exp_ops,
                 solver,
                 options,
                 optimizer,
@@ -117,6 +126,8 @@ def step(
     pulse_optimizer: PulseOptimizer,
     initial_states: Array,
     costs: list[Cost],
+    jump_ops: list[Array],
+    exp_ops: list[Array],
     solver: Solver,
     options: GRAPEOptions,
     optimizer: GradientTransformation,
@@ -130,6 +141,8 @@ def step(
         pulse_optimizer,
         initial_states,
         costs,
+        jump_ops,
+        exp_ops,
         solver,
         options,
     )
@@ -143,11 +156,40 @@ def loss(
     pulse_optimizer: PulseOptimizer,
     initial_states: Array,
     costs: list[Cost],
+    jump_ops: Array,
+    exp_ops: Array,
     solver: Solver,
     options: GRAPEOptions,
 ) -> [float, Array]:
     H, tsave = pulse_optimizer.update(params_to_optimize)
-    results = dq.sesolve(H, initial_states, tsave, solver=solver, options=options)
+    if options.grape_type == 0:
+        results = dq.sesolve(H, initial_states, tsave, solver=solver, options=options)
+    elif options.grape_type == 1:
+        results = dq.mesolve(
+            H,
+            jump_ops,
+            initial_states,
+            tsave,
+            exp_ops=exp_ops,
+            solver=solver,
+            options=options
+        )
+    elif options.grape_type == 2:
+        results = dq.mcsolve(
+            H,
+            jump_ops,
+            initial_states,
+            tsave,
+            key=PRNGKey(options.rng_seed),
+            exp_ops=exp_ops,
+            solver=solver,
+            options=options,
+        )
+    else:
+        raise ValueError(
+            f"grape_type can be 'sesolve', 'mesolve', or 'mcsolve' but got"
+            f"{options.grape_type}"
+        )
     # manual looping here becuase costs is a list of classes, not straightforward to
     # call vmap on
     cost_values = [cost.evaluate(results, H) for cost in costs]
