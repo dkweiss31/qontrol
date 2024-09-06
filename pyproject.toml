@@ -25,9 +25,13 @@ dev = [
     "taskipy",
     "ruff",
     "codespell",
+    "jinja2",
+    "pygments",
     "pytest>=7.0,<8.0",
     "pytest-sugar",
     "pytest-xdist",
+    "pymdown-extensions",
+    "mkdocs",
     "mkdocs-material",
     "mkdocstrings[python]",
     "mkdocs-gen-files",
@@ -36,6 +40,8 @@ dev = [
     "mkdocs-simple-hooks",
     "mkdocs-glightbox",
     "mkdocs-exclude",
+    "mknotebooks",
+    "nbconvert",
     "sybil>=6",
     "black",  # needed by mkdocstrings to format function signatures
 ]
