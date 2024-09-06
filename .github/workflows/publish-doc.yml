@@ -36,5 +36,12 @@ jobs:
       - name: List installed dependencies
         run: python -m pip list
 
-      - name: Publish website
-        run: mkdocs gh-deploy --force
+      - name: Build Docs
+        run: |
+          mkdocs build
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v2
+        with:
+          name: docs
+          path: site
