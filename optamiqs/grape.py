@@ -23,7 +23,7 @@ from .cost import Cost
 
 
 def grape(
-    pulse_optimizer: PulseOptimizer,
+    hamiltonian_time_update: HamiltonianTimeUpdater,
     initial_states: ArrayLike,
     params_to_optimize: ArrayLike,
     *,
@@ -82,7 +82,7 @@ def grape(
         jump_ops = [_astimearray(L) for L in jump_ops]
     exp_ops = jnp.asarray(exp_ops, dtype=cdtype()) if exp_ops is not None else None
     opt_state = optimizer.init(params_to_optimize)
-    _, init_tsave = pulse_optimizer.update(params_to_optimize)
+    _, init_tsave = hamiltonian_time_update.update(params_to_optimize)
     init_param_dict = options.__dict__ | {'tsave': init_tsave} | init_params_to_save
     print(f'saving results to {filepath}')
     try:  # trick for catching keyboard interrupt
@@ -91,7 +91,7 @@ def grape(
             params_to_optimize, opt_state, infids = step(
                 params_to_optimize,
                 opt_state,
-                pulse_optimizer,
+                hamiltonian_time_update,
                 initial_states,
                 costs,
                 jump_ops,
@@ -124,7 +124,7 @@ def grape(
 def step(
     params_to_optimize: Array,
     opt_state: TransformInitFn,
-    pulse_optimizer: PulseOptimizer,
+    hamiltonian_time_update: HamiltonianTimeUpdater,
     initial_states: Array,
     costs: list[Cost],
     jump_ops: list[Array],
@@ -139,7 +139,7 @@ def step(
     """
     grads, infids = jax.grad(loss, has_aux=True)(
         params_to_optimize,
-        pulse_optimizer,
+        hamiltonian_time_update,
         initial_states,
         costs,
         jump_ops,
@@ -154,7 +154,7 @@ def step(
 
 def loss(
     params_to_optimize: Array,
-    pulse_optimizer: PulseOptimizer,
+    hamiltonian_time_update: HamiltonianTimeUpdater,
     initial_states: Array,
     costs: list[Cost],
     jump_ops: Array,
@@ -162,7 +162,7 @@ def loss(
     solver: Solver,
     options: GRAPEOptions,
 ) -> [float, Array]:
-    H, tsave = pulse_optimizer.update(params_to_optimize)
+    H, tsave = hamiltonian_time_update.update(params_to_optimize)
     if options.grape_type == 0:
         results = dq.sesolve(H, initial_states, tsave, solver=solver, options=options)
     elif options.grape_type == 1:
