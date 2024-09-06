@@ -10,7 +10,6 @@ import optax
 from dynamiqs._utils import cdtype
 from dynamiqs.solver import Solver, Tsit5
 from jax import Array
-from jaxtyping import ArrayLike
 from optax import GradientTransformation, TransformInitFn
 from jaxtyping import ArrayLike
 from dynamiqs.integrators._utils import _astimearray
@@ -18,7 +17,7 @@ from jax.random import PRNGKey
 
 from .file_io import save_and_print
 from .options import GRAPEOptions
-from .pulse_optimizer import PulseOptimizer
+from .hamiltonian_time import HamiltonianTimeUpdater
 from .cost import Cost
 
 
@@ -30,7 +29,7 @@ def grape(
     costs: list[Cost] = None,
     jump_ops: list[ArrayLike] = None,
     exp_ops: list[ArrayLike] = None,
-    filepath: str = 'tmp.h5py',
+    filepath: str = None,
     optimizer: GradientTransformation = optax.adam(0.1, b1=0.99, b2=0.99),  # noqa: B008
     solver: Solver = Tsit5(),  # noqa: B008
     options: GRAPEOptions = GRAPEOptions(),  # noqa: B008
@@ -44,39 +43,31 @@ def grape(
     in the file filepath
 
     Args:
-         H_func _(PyTree object)_: Hamiltonian. Assumption is that we can
-            instantiate a timecallable instance with
-            H_func = partial(H_func, drive_params=params_to_optimize)
-            H = timecallable(H_func, )
-         initial_states _(list of array-like of shape (n, 1))_: initial states
-         target_states _(list of array-like of shape (n, 1))_: target states
-         tsave _(array-like of shape (nt,))_: times to be passed to sesolve
-         params_to_optimize _(dict or array-like)_: parameters to optimize
-            over that are used to define the Hamiltonian
-         filepath _(str)_: filepath of where to save optimization results
-         optimizer _(optax.GradientTransformation)_: optax optimizer to use
-            for gradient descent. Defaults to the Adam optimizer
-         solver _(Solver)_: solver passed to sesolve
-         options _(Options)_: options for grape optimization and sesolve integration
-            relevant options include:
-                coherent, bool where if True we use a definition of fidelity
-                that includes relative phases, if not it ignores relative phases
-                epochs, int that is the maximum number of epochs to loop over
-                target_fidelity, float where the optimization terminates if the fidelity
-                if above this value
-         init_params_to_save _(dict)_: initial parameters we want to save
+        hamiltonian_time_update_fun _(HamiltonianTimeUpdater)_: Class specifying
+            how to update the Hamiltonian and control times, see
+            [`HamiltonianTimeUpdater`][optamiqs.HamiltonianTimeUpdater].
+        initial_states _(list of array-like of shape (n, 1) or (n, n))_: Initial states.
+        params_to_optimize _(dict or array-like)_: parameters to optimize
+            over that are used to define the Hamiltonian and control times.
+        costs _(list of Cost instances)_: List of cost functions used to perform the
+            optimization.
+        jump_ops _(list of array-like)_: Jump operators to use if performing mcsolve or
+            mesolve optimizations, not utilized if performing sesolve optimizations.
+        exp_ops _(list of array-like)_: Operators to calculate expectation values of,
+            in case some of the cost functions depend on the value of certain
+            expectation values.
+        filepath _(str)_: Filepath of where to save optimization results.
+        optimizer _(optax.GradientTransformation)_: optax optimizer to use
+            for gradient descent. Defaults to the Adam optimizer.
+        solver _(Solver)_: Solver passed to dynamiqs.
+        options _(GRAPEOptions)_: Options for grape optimization and dynamiqs
+            integration.
+        init_params_to_save _(dict)_: Initial parameters we want to save.
     Returns:
         optimized parameters from the final timestep
     """
     if init_params_to_save is None:
         init_params_to_save = {}
-    if not options.save_states:
-        raise ValueError(
-            "save_states must be set to true for GRAPE optimization. If you are worried"
-            "about excess memory usage, you can specify that the tsave passed to sesolve"
-            "only has two elements in it, e.g. tsave=(0, t). That is to say, the control"
-            "tsave need not be the same as the tsave for saving states."
-        )
     initial_states = jnp.asarray(initial_states, dtype=cdtype())
     if jump_ops is not None:
         jump_ops = [_astimearray(L) for L in jump_ops]
@@ -84,7 +75,8 @@ def grape(
     opt_state = optimizer.init(params_to_optimize)
     _, init_tsave = hamiltonian_time_update.update(params_to_optimize)
     init_param_dict = options.__dict__ | {'tsave': init_tsave} | init_params_to_save
-    print(f'saving results to {filepath}')
+    if options.verbose and filepath is not None:
+        print(f'saving results to {filepath}')
     try:  # trick for catching keyboard interrupt
         for epoch in range(options.epochs):
             epoch_start_time = time.time()
@@ -101,14 +93,16 @@ def grape(
                 optimizer,
             )
             data_dict = {'infidelities': infids}
-            save_and_print(
-                filepath,
-                data_dict,
-                params_to_optimize,
-                init_param_dict,
-                epoch,
-                epoch_start_time,
-            )
+            if filepath is not None:
+                save_and_print(
+                    filepath,
+                    data_dict,
+                    params_to_optimize,
+                    init_param_dict,
+                    options,
+                    epoch,
+                    epoch_start_time,
+                )
             if all(infids < 1 - options.target_fidelity):
                 print('target fidelity reached')
                 break
