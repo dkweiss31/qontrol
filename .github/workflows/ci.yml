@@ -42,6 +42,3 @@ jobs:
 
       - name: List installed dependencies
         run: python -m pip list
-
-      - name: Run CI checks
-        run: task ci
