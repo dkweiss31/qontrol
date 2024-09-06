@@ -5,12 +5,19 @@ from jax import Array, vmap
 import jax
 import jax.numpy as jnp
 from jaxtyping import ArrayLike
+import jax.tree_util as jtu
 
 from dynamiqs._utils import cdtype
-from dynamiqs import TimeArray, unit
+from dynamiqs import TimeArray, unit, isdm, operator_to_vector
 from dynamiqs.time_array import SummedTimeArray
 from dynamiqs.result import Result
 from .fidelity import infidelity_incoherent, infidelity_coherent
+
+
+def _operator_to_vector(states):
+    if isdm(states):
+        return operator_to_vector(states)
+    return states
 
 
 def incoherent_infidelity(
@@ -25,12 +32,14 @@ def incoherent_infidelity(
     $$
     """
     target_states = jnp.asarray(target_states, dtype=cdtype())
-    return IncoherentInfidelity(target_states, cost_multiplier)
+    if isdm(target_states):
+        target_states = operator_to_vector(target_states)
+    return IncoherentInfidelity(cost_multiplier, target_states)
 
 
 def coherent_infidelity(
     target_states: ArrayLike,
-    cost_multiplier: float = 1.0
+    cost_multiplier: float = 1.0,
 ) -> CoherentInfidelity:
     r"""Instantiate the cost function for calculating infidelity coherently.
 
@@ -40,7 +49,70 @@ def coherent_infidelity(
     $$
     """
     target_states = jnp.asarray(target_states, dtype=cdtype())
-    return CoherentInfidelity(target_states, cost_multiplier)
+    if isdm(target_states):
+        target_states = operator_to_vector(target_states)
+    return CoherentInfidelity(cost_multiplier, target_states)
+
+
+def forbidden_states(
+    forbidden_states: ArrayLike,
+    cost_multiplier: float = 1.0,
+) -> ForbiddenStates:
+    """
+    forbidden_states should be a list of lists of forbidden states for each
+    respective initial state. The resulting `forbid_array` has
+    dimensions sfid where f is the batch dimension over multiple forbidden states
+    """
+    state_shape = _operator_to_vector(forbidden_states[0][0]).shape
+    num_states = len(forbidden_states)
+    num_forbid_per_state = jnp.asarray([
+        len(forbid_list) for forbid_list in forbidden_states
+    ])
+    max_num_forbid = jnp.max(num_forbid_per_state)
+    arr_indices = [(state_idx, forbid_idx)
+                   for state_idx in range(num_states)
+                   for forbid_idx in range(max_num_forbid)]
+    forbid_array = jnp.zeros((num_states, max_num_forbid, *state_shape), dtype=cdtype())
+    for state_idx, forbid_idx in arr_indices:
+        forbidden_state = _operator_to_vector(forbidden_states[state_idx][forbid_idx])
+        forbid_array = forbid_array.at[state_idx, forbid_idx].set(forbidden_state)
+    return ForbiddenStates(cost_multiplier, forbid_array)
+
+
+def control_area(cost_multiplier: float = 1.0) -> ControlArea:
+    """ Control area cost function.
+
+    Penalize the area under the curve according to
+    $$
+        C = \sum_{j}\int_{0}^{T}\Omega_{j}(t)dt,
+    $$
+    where the $\Omega_{j}$ are the individual controls and $T$ is the pulse time.
+    """
+    return ControlArea(cost_multiplier)
+
+
+def control_norm(threshold: float, cost_multiplier: float = 1.0) -> ControlNorm:
+    """ Control norm cost function.
+
+    Penalize the norm of the controls above some threshold according to
+    $$
+        C = \sum_{j}\int_{0}^{T}ReLU(|\Omega_{j}(t)|-\Omega_{max})dt,
+    $$
+    where `threshold`=$\Omega_{max}$
+    """
+    return ControlNorm(cost_multiplier, threshold)
+
+
+def custom_cost(cost_fun, cost_multiplier: float = 1.0) -> CustomCost:
+    r""" A custom cost function.
+
+    If the user has a specific cost function in mind not capture by predefined cost
+    functions, they can provide a custom cost function `cost_fun` that should
+    have the signature (result: Result, H: TimeArray) -> float. See
+    ADVANCED API for example usages.
+    """
+    cost_fun = jtu.Partial(cost_fun)
+    return CustomCost(cost_multiplier, cost_fun)
 
 
 class Cost(eqx.Module):
@@ -53,14 +125,10 @@ class Cost(eqx.Module):
 class IncoherentInfidelity(Cost):
     target_states: Array
 
-    def __init__(self, target_states: ArrayLike, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.target_states = jnp.asarray(target_states, dtype=cdtype())
-
     def evaluate(self, result: Result, H: TimeArray):
-        final_states = result.states[..., -1, :, :]
+        final_state = _operator_to_vector(result.final_state)
         overlaps = jnp.einsum(
-            'sid,...sid->...s', jnp.conj(self.target_states), final_states
+            'sid,...sid->...s', jnp.conj(self.target_states), final_state
         )
         # square before summing
         overlaps_sq = jnp.real(jnp.abs(overlaps * jnp.conj(overlaps)))
@@ -71,14 +139,10 @@ class IncoherentInfidelity(Cost):
 class CoherentInfidelity(Cost):
     target_states: Array
 
-    def __init__(self, target_states: ArrayLike, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.target_states = jnp.asarray(target_states, dtype=cdtype())
-
     def evaluate(self, result: Result, H: TimeArray):
-        final_states = result.states[..., -1, :, :]
+        final_state = _operator_to_vector(result.final_state)
         overlaps = jnp.einsum(
-            'sid,...sid->...s', jnp.conj(self.target_states), final_states
+            'sid,...sid->...s', jnp.conj(self.target_states), final_state
         )
         # sum before squaring
         overlaps_avg = jnp.mean(overlaps, axis=-1)
@@ -89,45 +153,20 @@ class CoherentInfidelity(Cost):
 
 
 class ForbiddenStates(Cost):
-    """
-    forbidden_states should be a list of lists of forbidden states for each
-    respective initial state. The resulting self.forbidden_states has
-    dimensions sbid where b is the batch dimension over multiple forbidden states
-    """
     forbidden_states: Array
-
-    def __init__(self, forbidden_states: list[Array], *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        state_shape = forbidden_states[0][0].shape
-        num_states = len(forbidden_states)
-        num_forbid_per_state = jnp.asarray([
-            len(forbid_list) for forbid_list in forbidden_states
-        ])
-        max_num_forbid = jnp.max(num_forbid_per_state)
-        arr_indices = [(state_idx, forbid_idx)
-                       for state_idx in range(num_states)
-                       for forbid_idx in range(max_num_forbid)]
-        forbid_array = jnp.zeros((num_states, max_num_forbid, *state_shape), dtype=cdtype())
-        for state_idx, forbid_idx in arr_indices:
-            forbidden_state = forbidden_states[state_idx][forbid_idx]
-            forbid_array = forbid_array.at[state_idx, forbid_idx].set(forbidden_state)
-        self.forbidden_states = forbid_array
 
     def evaluate(self, result: Result, H: TimeArray):
         # states has dims ...stid, where s is initial_states batching, t has
         # dimension of tsave and id are the state dimensions.
+        states = _operator_to_vector(result.states)
         forbidden_ovlps = jnp.einsum(
-            "...stid,sfid->...stf", result.states, self.forbidden_states
+            "...stid,sfid->...stf", states, self.forbidden_states
         )
         forbidden_pops = jnp.real(jnp.mean(forbidden_ovlps * jnp.conj(forbidden_ovlps)))
         return self.cost_multiplier * forbidden_pops
 
 
 class Control(Cost):
-
-    def __init__(self, *args, **kwargs):
-        # TODO allow weighting for different Hamiltonian controls
-        super().__init__(*args, **kwargs)
 
     def evaluate_controls(self, result: Result, H: TimeArray, func):
 
@@ -141,8 +180,8 @@ class Control(Cost):
             control_val = 0.0
             # ugly for loop, having trouble with vmap or scan because only PWCTimeArray
             # and ModulatedTimeArray have attributes prefactor
-            for timearray in H.timearrays:
-                control_val += jnp.sum(vmap(_evaluate_at_tsave)(timearray))
+            for _H in H.timearrays:
+                control_val += _evaluate_at_tsave(_H)
         else:
             control_val = _evaluate_at_tsave(H)
 
@@ -150,9 +189,12 @@ class Control(Cost):
 
 
 class ControlNorm(Control):
+    threshold: float
 
     def evaluate(self, result: Result, H: TimeArray):
-        return self.evaluate_controls(result, H, lambda x: x ** 2)
+        return self.evaluate_controls(
+            result, H, lambda x: jax.nn.relu(jnp.abs(x) - self.threshold)
+        )
 
 
 class ControlArea(Control):
@@ -204,12 +246,8 @@ class MCInfidelity(Cost):
         return self.cost_multiplier * infid
 
 
-class CustumCost(Control):
+class CustomCost(Control):
     cost_fun: callable
-
-    def __init__(self, cost_fun: callable, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.cost_fun = jax.tree_util.Partial(cost_fun)
 
     def evaluate(self, result: Result, H: TimeArray):
         return self.cost_fun(result, H)
