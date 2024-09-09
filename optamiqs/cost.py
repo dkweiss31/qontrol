@@ -38,7 +38,7 @@ def incoherent_infidelity(
 
 
 def coherent_infidelity(
-    target_states: ArrayLike,
+    target_states: list[ArrayLike],
     cost_multiplier: float = 1.0,
 ) -> CoherentInfidelity:
     r"""Instantiate the cost function for calculating infidelity coherently.
@@ -55,7 +55,7 @@ def coherent_infidelity(
 
 
 def forbidden_states(
-    forbidden_states: ArrayLike,
+    forbidden_states_list: list[ArrayLike],
     cost_multiplier: float = 1.0,
 ) -> ForbiddenStates:
     """
@@ -63,10 +63,10 @@ def forbidden_states(
     respective initial state. The resulting `forbid_array` has
     dimensions sfid where f is the batch dimension over multiple forbidden states
     """
-    state_shape = _operator_to_vector(forbidden_states[0][0]).shape
-    num_states = len(forbidden_states)
+    state_shape = _operator_to_vector(forbidden_states_list[0][0]).shape
+    num_states = len(forbidden_states_list)
     num_forbid_per_state = jnp.asarray([
-        len(forbid_list) for forbid_list in forbidden_states
+        len(forbid_list) for forbid_list in forbidden_states_list
     ])
     max_num_forbid = jnp.max(num_forbid_per_state)
     arr_indices = [(state_idx, forbid_idx)
@@ -74,7 +74,7 @@ def forbidden_states(
                    for forbid_idx in range(max_num_forbid)]
     forbid_array = jnp.zeros((num_states, max_num_forbid, *state_shape), dtype=cdtype())
     for state_idx, forbid_idx in arr_indices:
-        forbidden_state = _operator_to_vector(forbidden_states[state_idx][forbid_idx])
+        forbidden_state = _operator_to_vector(forbidden_states_list[state_idx][forbid_idx])
         forbid_array = forbid_array.at[state_idx, forbid_idx].set(forbidden_state)
     return ForbiddenStates(cost_multiplier, forbid_array)
 
