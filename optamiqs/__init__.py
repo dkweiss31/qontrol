@@ -1,6 +1,8 @@
+from importlib.metadata import version
+
 from .fidelity import all_cardinal_states as all_cardinal_states
 from .file_io import (
-    save_and_print as save_and_print,
+    save_optimization as save_optimization,
     append_to_h5 as append_to_h5,
     write_to_h5 as write_to_h5,
     generate_file_path as generate_file_path,
@@ -15,4 +17,7 @@ from .cost import (
     forbidden_states as forbidden_states,
     control_area as control_area,
     control_norm as control_norm,
+    custom_cost as custom_cost,
 )
+
+__version__ = version(__package__)
