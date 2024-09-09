@@ -103,6 +103,19 @@ def control_norm(threshold: float, cost_multiplier: float = 1.0) -> ControlNorm:
     return ControlNorm(cost_multiplier, threshold)
 
 
+def control_custom(cost_fun: callable, cost_multiplier: float = 1.0) -> ControlCustom:
+    r"""Cost function based on an arbitrary transformation of the controls.
+
+    Penalize the controls according to norm of the controls above some threshold according to
+    $$
+        C = \sum_{j}\int_{0}^{T}F(\Omega_{j}(t))dt,
+    $$
+    for some arbitrary function F
+    """
+    cost_fun = jtu.Partial(cost_fun)
+    return ControlCustom(cost_multiplier, cost_fun)
+
+
 def custom_cost(cost_fun, cost_multiplier: float = 1.0) -> CustomCost:
     r"""A custom cost function.
 
@@ -198,6 +211,13 @@ class ControlNorm(Control):
 class ControlArea(Control):
     def evaluate(self, result: Result, H: TimeArray):
         return self.evaluate_controls(result, H, lambda x: x)
+
+
+class ControlCustom(Control):
+    cost_fun: callable
+
+    def evaluate(self, result: Result, H: TimeArray):
+        return self.evaluate_controls(result, H, self.cost_fun)
 
 
 class MCInfidelity(Cost):
