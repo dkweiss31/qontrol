@@ -15,7 +15,7 @@ from jaxtyping import ArrayLike
 from dynamiqs.integrators._utils import _astimearray
 from jax.random import PRNGKey
 
-from .file_io import save_and_print
+from .file_io import save_optimization
 from .options import GRAPEOptions
 from .hamiltonian_time import HamiltonianTimeUpdater
 from .cost import Cost
@@ -30,7 +30,7 @@ def grape(
     jump_ops: list[ArrayLike] = None,
     exp_ops: list[ArrayLike] = None,
     filepath: str = None,
-    optimizer: GradientTransformation = optax.adam(0.1, b1=0.99, b2=0.99),  # noqa: B008
+    optimizer: GradientTransformation = optax.adam(0.0001, b1=0.99, b2=0.99),  # noqa: B008
     solver: Solver = Tsit5(),  # noqa: B008
     options: GRAPEOptions = GRAPEOptions(),  # noqa: B008
     init_params_to_save: dict | None = None,
@@ -43,7 +43,7 @@ def grape(
     in the file filepath
 
     Args:
-        hamiltonian_time_update_fun _(HamiltonianTimeUpdater)_: Class specifying
+        hamiltonian_time_update _(HamiltonianTimeUpdater)_: Class specifying
             how to update the Hamiltonian and control times, see
             [`HamiltonianTimeUpdater`][optamiqs.HamiltonianTimeUpdater].
         initial_states _(list of array-like of shape (n, 1) or (n, n))_: Initial states.
@@ -93,24 +93,28 @@ def grape(
                 optimizer,
             )
             data_dict = {'infidelities': infids}
+            if options.verbose:
+                print(
+                    f'epoch: {epoch}, fidelity: {1 - infids},'
+                    f' elapsed_time: {jnp.around(time.time() - epoch_start_time, decimals=3)} s'
+                )
             if filepath is not None:
-                save_and_print(
+                save_optimization(
                     filepath,
                     data_dict,
                     params_to_optimize,
                     init_param_dict,
-                    options,
                     epoch,
-                    epoch_start_time,
                 )
             if all(infids < 1 - options.target_fidelity):
-                print('target fidelity reached')
+                print(f'target fidelity reached after {epoch} epochs')
+                print(f'fidelity: {1 - infids}')
                 break
+            if epoch == options.epochs - 1:
+                print('reached maximum number of allowed epochs')
+                print(f'fidelity: {1 - infids}')
     except KeyboardInterrupt:
         print('terminated on keyboard interrupt')
-    else:
-        print('reached maximum number of allowed epochs')
-    print(f'all results saved to {filepath}')
     return params_to_optimize
 
 
