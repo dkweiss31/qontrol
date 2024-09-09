@@ -11,9 +11,9 @@ dependencies = [
     "jaxtyping",
     "diffrax>=0.5.1",
     "equinox",
-    "cmasher>=1.8.0",
     "ipython",
     "optax",
+    "dynamiqs",
 ]
 
 [build-system]
@@ -25,11 +25,8 @@ dev = [
     "taskipy",
     "ruff",
     "codespell",
-    "jinja2",
     "pygments",
     "pytest>=7.0,<8.0",
-    "pytest-sugar",
-    "pytest-xdist",
     "pymdown-extensions",
     "mkdocs",
     "mkdocs-material",
@@ -41,7 +38,7 @@ dev = [
     "mkdocs-glightbox",
     "mkdocs-exclude",
     "mknotebooks",
-    "nbconvert",
+    "nbconvert==6.5.0",
     "sybil>=6",
     "black",  # needed by mkdocstrings to format function signatures
 ]
@@ -83,8 +80,6 @@ allow-dict-calls-with-keyword-arguments = true
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
-"docs/**.py" = ["INP001", "ARG001", "ANN"]
-"conftest.py" = ["ANN"]
 "tests/**.py" = ["ANN"]
 "examples/**.py" = ["INP001"]
 
@@ -93,7 +88,6 @@ convention = "google"
 
 [tool.codespell]
 skip = ".git,*.ipynb"
-ignore-words-list = "ket, braket, SME"
 
 # === taskipy tasks definition ===
 

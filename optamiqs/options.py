@@ -26,21 +26,21 @@ class GRAPEOptions(Options):
         verbose: bool = True,
         target_fidelity: float = 0.9995,
         epochs: int = 1000,
-        grape_type: str = "sesolve",
+        grape_type: str = 'sesolve',
         rng_seed: int = 31,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        if grape_type == "sesolve":
+        if grape_type == 'sesolve':
             grape_type = 0
-        elif grape_type == "mesolve":
+        elif grape_type == 'mesolve':
             grape_type = 1
-        elif grape_type == "mcsolve":
+        elif grape_type == 'mcsolve':
             grape_type = 2
         else:
             raise ValueError(
                 f"grape_type can be 'sesolve', 'mesolve', or 'mcsolve' but got"
-                f"{grape_type}"
+                f'{grape_type}'
             )
         self.verbose = verbose
         self.target_fidelity = target_fidelity

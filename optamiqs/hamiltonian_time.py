@@ -7,7 +7,7 @@ import jax.tree_util as jtu
 def hamiltonian_time_updater(
     H_function: callable, update_function: callable
 ) -> HamiltonianTimeUpdater:
-    r""" Hamiltonian and control times updater.
+    r"""Hamiltonian and control times updater.
 
     Specify the Hamiltonian as well as the update function that encodes how to update
     the Hamiltonian and the control times.

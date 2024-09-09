@@ -8,17 +8,17 @@ import jax
 import jax.numpy as jnp
 import optax
 from dynamiqs._utils import cdtype
+from dynamiqs.integrators._utils import _astimearray
 from dynamiqs.solver import Solver, Tsit5
 from jax import Array
-from optax import GradientTransformation, TransformInitFn
-from jaxtyping import ArrayLike
-from dynamiqs.integrators._utils import _astimearray
 from jax.random import PRNGKey
+from jaxtyping import ArrayLike
+from optax import GradientTransformation, TransformInitFn
 
-from .file_io import save_optimization
-from .options import GRAPEOptions
-from .hamiltonian_time import HamiltonianTimeUpdater
 from .cost import Cost
+from .file_io import save_optimization
+from .hamiltonian_time import HamiltonianTimeUpdater
+from .options import GRAPEOptions
 
 
 def grape(
@@ -63,6 +63,7 @@ def grape(
         options _(GRAPEOptions)_: Options for grape optimization and dynamiqs
             integration.
         init_params_to_save _(dict)_: Initial parameters we want to save.
+
     Returns:
         optimized parameters from the final timestep
     """
@@ -100,11 +101,7 @@ def grape(
                 )
             if filepath is not None:
                 save_optimization(
-                    filepath,
-                    data_dict,
-                    params_to_optimize,
-                    init_param_dict,
-                    epoch,
+                    filepath, data_dict, params_to_optimize, init_param_dict, epoch
                 )
             if all(infids < 1 - options.target_fidelity):
                 print(f'target fidelity reached after {epoch} epochs')
@@ -171,7 +168,7 @@ def loss(
             tsave,
             exp_ops=exp_ops,
             solver=solver,
-            options=options
+            options=options,
         )
     elif options.grape_type == 2:
         results = dq.mcsolve(
@@ -187,7 +184,7 @@ def loss(
     else:
         raise ValueError(
             f"grape_type can be 'sesolve', 'mesolve', or 'mcsolve' but got"
-            f"{options.grape_type}"
+            f'{options.grape_type}'
         )
     # manual looping here becuase costs is a list of classes, not straightforward to
     # call vmap on

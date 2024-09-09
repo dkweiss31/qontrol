@@ -1,15 +1,17 @@
-import jax.numpy as jnp
-from jax import Array
-from dynamiqs import modulated, sesolve, mesolve
 import diffrax as dx
+import jax.numpy as jnp
 import optax
-import optamiqs
+from dynamiqs import mesolve, modulated, sesolve
+from jax import Array
 
-from optamiqs import GRAPEOptions, coherent_infidelity, hamiltonian_time_updater, control_norm, grape
+import optamiqs
+from optamiqs import hamiltonian_time_updater
 
 
 class AbstractSystem:
-    def __init__(self, H0, H1s, jump_ops, initial_states, target_states, tsave, options):
+    def __init__(
+        self, H0, H1s, jump_ops, initial_states, target_states, tsave, options
+    ):
         self.H0 = H0
         self.H1s = H1s
         self.jump_ops = jump_ops
@@ -28,16 +30,14 @@ class AbstractSystem:
         assert infid < 1 - self.options.target_fidelity
 
     def run(self, costs, filepath):
-        init_drive_params = {
-            "dp": -0.001 * jnp.ones((len(self.H1s), len(self.tsave)))
-        }
+        init_drive_params = {'dp': -0.001 * jnp.ones((len(self.H1s), len(self.tsave)))}
 
         def _drive_spline(drive_params: Array) -> dx.CubicInterpolation:
             drive_coeffs = dx.backward_hermite_coefficients(self.tsave, drive_params)
             return dx.CubicInterpolation(self.tsave, drive_coeffs)
 
         def H_func(drive_params_dict: dict) -> Array:
-            drive_params = drive_params_dict["dp"]
+            drive_params = drive_params_dict['dp']
             H = self.H0
             for H1, drive_param in zip(self.H1s, drive_params):
                 drive_spline = _drive_spline(drive_param)

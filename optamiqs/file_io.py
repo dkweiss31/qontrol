@@ -3,12 +3,9 @@ from __future__ import annotations
 import glob
 import os
 import re
-import time
 
 import h5py
-import numpy as np
 from jaxtyping import ArrayLike
-from .options import GRAPEOptions
 
 
 def save_optimization(
