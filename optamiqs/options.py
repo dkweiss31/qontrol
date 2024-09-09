@@ -27,7 +27,7 @@ class GRAPEOptions(Options):
         target_fidelity: float = 0.9995,
         epochs: int = 1000,
         grape_type: str = "sesolve",
-        rng_seed: int = 42,
+        rng_seed: int = 31,
         **kwargs,
     ):
         super().__init__(**kwargs)
