@@ -1,10 +1,10 @@
-site_name: optamiqs
-site_description: Documentation for the optamiqs software library
+site_name: qontrol
+site_description: Documentation for the qontrol software library
 site_author: Daniel Weiss
 site_url: https://github.com/dkweiss31/qontrol
 
 repo_url: https://github.com/dkweiss31/qontrol
-repo_name: dkweiss31/optamiqs
+repo_name: dkweiss31/qontrol
 edit_uri: ""
 
 theme:

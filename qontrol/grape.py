@@ -44,8 +44,7 @@ def grape(
 
     Args:
         hamiltonian_time_update _(HamiltonianTimeUpdater)_: Class specifying
-            how to update the Hamiltonian and control times, see
-            [`HamiltonianTimeUpdater`][optamiqs.HamiltonianTimeUpdater].
+            how to update the Hamiltonian and control times.
         initial_states _(list of array-like of shape (n, 1) or (n, n))_: Initial states.
         params_to_optimize _(dict or array-like)_: parameters to optimize
             over that are used to define the Hamiltonian and control times.

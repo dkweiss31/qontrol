@@ -6,7 +6,7 @@ qontrol is a quantum optimal control package built on top of [dynamiqs](https://
 
 For now we support only installing directly from github
 ```bash
-pip install git+https://github.com/dkweiss31/optamiqs
+pip install git+https://github.com/dkweiss31/qontrol
 ```
 
 Requires Python 3.10+
