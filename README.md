@@ -11,6 +11,11 @@ pip install git+https://github.com/dkweiss31/qontrol
 
 Requires Python 3.10+
 
+
+## Documentation
+
+Documentation is available at [https://dkweiss.net/qontrol/](https://dkweiss.net/qontrol/)
+
 ## Quick example
 
 Optimal control of a Kerr oscillator, with piece-wise constant drives on the I and Q quadratures and optimizing for a `Y` gate

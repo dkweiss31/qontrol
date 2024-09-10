@@ -11,10 +11,6 @@ pip install git+https://github.com/dkweiss31/qontrol
 
 Requires Python 3.10+
 
-## Documentation
-
-Documentation is available at https://dkweiss.net/qontrol/
-
 ## Quick example
 
 Optimal control of a Kerr oscillator, with piece-wise constant drives on the I and Q quadratures and optimizing for a `Y` gate
@@ -57,8 +53,8 @@ opt_params = grape(
     options=GRAPEOptions(save_states=False, progress_meter=None),
 )
 ```
-The `updater` function is necessary because we have to tell the optimizer how to update the Hamiltonian once `params_to_optimize` are updated in each round of the optimization. In more complex examples we can also perform time-optimal control where the control times themselves are optimized, see [here](examples/Kerr_oscillator.md) for example.
+The `updater` function is necessary because we have to tell the optimizer how to update the Hamiltonian once `params_to_optimize` are updated in each round of the optimization. In more complex examples we can also perform time-optimal control where the control times themselves are optimized.
 
 ## Jump in
 
-If this has piqued your interest, please see the example jupyter notebooks that demonstrate different use cases of `qontrol`, including optimizing qubit pulses to be robust to frequency variations [here](examples/qubit.md) as well as performing time-optimal control and master-equation optimization [here](examples/Kerr_oscillator.md). Happy optimizing!
+If this has piqued your interest, please see the example jupyter notebooks that demonstrate different use cases of `qontrol`, including optimizing qubit pulses to be robust to frequency variations, performing time-optimal control and as well as master-equation optimization. Happy optimizing!
