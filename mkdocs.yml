@@ -15,13 +15,13 @@ theme:
         - header.autohide  # header disappears as you scroll
     palette:
         - scheme: default
-          primary: white
+          primary: deep purple
           accent: amber
           toggle:
              icon: material/weather-night
              name: Switch to dark mode
         - scheme: slate
-          primary: black
+          primary: deep purple
           accent: amber
           toggle:
              icon: material/weather-sunny
