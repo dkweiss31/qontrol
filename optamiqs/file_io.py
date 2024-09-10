@@ -3,31 +3,23 @@ from __future__ import annotations
 import glob
 import os
 import re
-import time
 
 import h5py
-import numpy as np
 from jaxtyping import ArrayLike
 
 
-def save_and_print(
+def save_optimization(
     filepath: str,
     data_dict: dict,
     params_to_optimize: ArrayLike | dict,
     init_param_dict: dict,
     epoch: int = 0,
-    prev_time: float = 0.0,
 ) -> None:
     """Saves the infidelities and optimal parameters obtained at each timestep."""
-    infidelities = data_dict['infidelities']
     if type(params_to_optimize) is dict:
         data_dict = data_dict | params_to_optimize
     else:
         data_dict['opt_params'] = params_to_optimize
-    print(
-        f'epoch: {epoch}, fids: {1 - infidelities},'
-        f' elapsed_time: {np.around(time.time() - prev_time, decimals=3)} s'
-    )
     if epoch != 0:
         append_to_h5(filepath, data_dict)
     else:

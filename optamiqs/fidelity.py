@@ -3,9 +3,8 @@ from __future__ import annotations
 import copy
 
 import jax.numpy as jnp
-from jax import Array
-
 from dynamiqs import unit
+from jax import Array
 
 
 def _overlaps(computed_states: Array, target_states: Array) -> Array:
