@@ -12,7 +12,7 @@ The **qontrol** Python API consists mainly of the function **grape** which perfo
 
 ## Optimizer updater
 
-::: qontrol.hamiltonian_time
+::: qontrol.updater
 
 ## Options
 
