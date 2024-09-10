@@ -1,7 +1,7 @@
 site_name: qontrol
 site_description: Documentation for the qontrol software library
 site_author: Daniel Weiss
-site_url: https://github.com/dkweiss31/qontrol
+site_url: http://dkweiss.net/qontrol/
 
 repo_url: https://github.com/dkweiss31/qontrol
 repo_name: dkweiss31/qontrol
@@ -12,7 +12,6 @@ theme:
     features:
         - navigation.sections  # Sections are included in the navigation on the left.
         - toc.integrate  # Table of contents is integrated on the left; does not appear separately on the right.
-        - header.autohide  # header disappears as you scroll
     palette:
         - scheme: default
           primary: deep purple
