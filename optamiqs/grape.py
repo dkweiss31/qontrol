@@ -130,6 +130,7 @@ def step(
     optimizer: GradientTransformation,
 ) -> [Array, TransformInitFn, Array]:
     """Calculate gradient of the loss and step updated parameters.
+
     We have has_aux=True because loss also returns the infidelities on the side
     (want to save those numbers as they give info on which pulse was best).
     """
@@ -187,7 +188,7 @@ def loss(
             f"grape_type can be 'sesolve', 'mesolve', or 'mcsolve' but got"
             f'{options.grape_type}'
         )
-    # manual looping here becuase costs is a list of classes, not straightforward to
+    # manual looping here because costs is a list of classes, not straightforward to
     # call vmap on
     cost_values = [cost.evaluate(results, H) for cost in costs]
     # assumption is that the zeroth entry in costs is the infidelity,

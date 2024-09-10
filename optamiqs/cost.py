@@ -4,14 +4,12 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
-from dynamiqs import TimeArray, isdm, operator_to_vector, unit
+from dynamiqs import TimeArray, isdm, operator_to_vector
 from dynamiqs._utils import cdtype
 from dynamiqs.result import Result
 from dynamiqs.time_array import SummedTimeArray
 from jax import Array, vmap
 from jaxtyping import ArrayLike
-
-from .fidelity import infidelity_coherent, infidelity_incoherent
 
 
 def _operator_to_vector(states: Array) -> Array:
@@ -187,8 +185,7 @@ class Control(Cost):
         def _evaluate_at_tsave(_H: TimeArray) -> Array:
             if hasattr(_H, 'prefactor'):
                 return jnp.sum(func(vmap(_H.prefactor)(result.tsave)))
-            else:
-                return jnp.array(0.0)
+            return jnp.array(0.0)
 
         if isinstance(H, SummedTimeArray):
             control_val = 0.0
@@ -221,46 +218,6 @@ class ControlCustom(Control):
 
     def evaluate(self, result: Result, H: TimeArray) -> Array:
         return self.evaluate_controls(result, H, self.cost_fun)
-
-
-class MCInfidelity(Cost):
-    target_states: ArrayLike
-    target_states_traj: ArrayLike
-    coherent: bool
-    no_jump_weight: float
-    jump_weight: float
-    infid_func: callable
-
-    def __init__(
-        self,
-        target_states,
-        target_states_traj,
-        coherent=False,
-        no_jump_weight=1.0,
-        jump_weight=1.0,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(*args, **kwargs)
-        self.target_states = jnp.asarray(target_states, dtype=cdtype())
-        self.target_states_traj = jnp.asarray(target_states_traj, dtype=cdtype())
-        if coherent:
-            self.infid_func = jax.tree_util.Partial(infidelity_coherent)
-        else:
-            self.infid_func = jax.tree_util.Partial(infidelity_incoherent)
-        self.coherent = coherent
-        self.no_jump_weight = no_jump_weight
-        self.jump_weight = jump_weight
-
-    def evaluate(self, result: Result, H: TimeArray) -> Array:  # noqa ARG002
-        final_jump_states = unit(result.final_jump_states).swapaxes(-4, -3)
-        final_no_jump_states = unit(result.final_no_jump_state)
-        infids_jump = self.infid_func(final_jump_states, self.target_states_traj)
-        infids_no_jump = self.infid_func(final_no_jump_states, self.target_states)
-        infid = self.jump_weight * jnp.mean(
-            infids_jump
-        ) + self.no_jump_weight * jnp.mean(infids_no_jump)
-        return self.cost_multiplier * infid
 
 
 class CustomCost(Control):
