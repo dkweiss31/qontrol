@@ -19,7 +19,7 @@ Optimal control of a Kerr oscillator
 import jax.numpy as jnp
 import optax
 from dynamiqs import basis, destroy, pwc, dag
-from qontrol import GRAPEOptions, grape, hamiltonian_time_updater, coherent_infidelity
+from qontrol import GRAPEOptions, grape, updater, coherent_infidelity
 
 dim = 5
 a = destroy(5)
@@ -32,24 +32,29 @@ time = 40
 ntimes = int(time // 2.0) + 1
 tsave = jnp.linspace(0, time, ntimes)
 
+
 def H_pwc(drive_params):
     H = H0
     for idx, _H1 in enumerate(H1s):
         H += pwc(tsave, drive_params[idx], _H1)
     return H
 
-ham_time_update = hamiltonian_time_updater(
-    H_pwc, lambda _H, _dp: (_H(_dp), tsave)
-)
+
+params_to_optimize = -0.001 * jnp.ones((len(H1s), ntimes - 1))
+costs = [coherent_infidelity(target_states=target_states), ]
+H_update = updater(lambda _dp: H_pwc(_dp))
 opt_params = grape(
-    ham_time_update,
-    initial_states=initial_states,
-    costs=[coherent_infidelity(target_states=target_states),],
-    params_to_optimize=-0.001 * jnp.ones((len(H1s), ntimes - 1)),
+    params_to_optimize,
+    costs,
+    H_update,
+    initial_states,
+    tsave=tsave,
     optimizer=optax.adam(learning_rate=0.0001),
     options=GRAPEOptions(save_states=False, progress_meter=None),
 )
 ```
-We have to tell the optimizer how to update both the Hamiltonian and the control times (for time-optimal control). Here we don't optimize over the control times, see EXAMPLE for an example where the control times are optimized. 
+The `updater` function is necessary because we have to tell the optimizer how to update the Hamiltonian once `params_to_optimize` are updated in each round of the optimization. In more complex examples we can also perform time-optimal control where the control times themselves are optimized, see [here](examples/Kerr_oscillator.ipynb) for example.
 
-Time for some more examples!
+## Jump in
+
+If this has piqued your interest, please see the example jupyter notebooks that demonstrate different use cases of `qontrol`, including optimizing qubit pulses to be robust to frequency variations [here](examples/qubit.ipynb) as well as performing time-optimal control and master-equation optimization [here](examples/Kerr_oscillator.ipynb). Happy optimizing!

@@ -17,16 +17,18 @@ from optax import GradientTransformation, TransformInitFn
 
 from .cost import Cost
 from .file_io import save_optimization
-from .hamiltonian_time import HamiltonianTimeUpdater
 from .options import GRAPEOptions
+from .update import Updater, updater
 
 
 def grape(
-    hamiltonian_time_update: HamiltonianTimeUpdater,
-    initial_states: ArrayLike,
     params_to_optimize: ArrayLike,
     costs: list[Cost],
+    hamiltonian_updater: Updater,
+    initial_states: ArrayLike,
     *,
+    tsave: ArrayLike | None = None,
+    tsave_updater: Updater | None = None,
     jump_ops: ArrayLike | None = None,
     exp_ops: ArrayLike | None = None,
     filepath: str | None = None,
@@ -72,8 +74,17 @@ def grape(
     if jump_ops is not None:
         jump_ops = [_astimearray(L) for L in jump_ops]
     exp_ops = jnp.asarray(exp_ops, dtype=cdtype()) if exp_ops is not None else None
+    if tsave is None and tsave_updater is None:
+        raise ValueError('one of tsave or tsave_updater need to not be None')
+    if tsave is not None and tsave_updater is not None:
+        raise ValueError(
+            'only one of tsave or tsave_updater can be set but got'
+            f'{tsave} for tsave and {tsave_updater} for tsave_updater'
+        )
+    if tsave_updater is None:
+        tsave_updater = updater(lambda _: tsave)
     opt_state = optimizer.init(params_to_optimize)
-    _, init_tsave = hamiltonian_time_update.update(params_to_optimize)
+    init_tsave = tsave_updater.update(params_to_optimize)
     init_param_dict = options.__dict__ | {'tsave': init_tsave} | init_params_to_save
     if options.verbose and filepath is not None:
         print(f'saving results to {filepath}')
@@ -82,10 +93,11 @@ def grape(
             epoch_start_time = time.time()
             params_to_optimize, opt_state, infids = step(
                 params_to_optimize,
-                opt_state,
-                hamiltonian_time_update,
-                initial_states,
                 costs,
+                hamiltonian_updater,
+                initial_states,
+                tsave_updater,
+                opt_state,
                 jump_ops,
                 exp_ops,
                 solver,
@@ -118,10 +130,11 @@ def grape(
 @partial(jax.jit, static_argnames=('solver', 'options', 'optimizer'))
 def step(
     params_to_optimize: Array,
-    opt_state: TransformInitFn,
-    hamiltonian_time_update: HamiltonianTimeUpdater,
-    initial_states: Array,
     costs: list[Cost],
+    hamiltonian_updater: Updater,
+    initial_states: Array,
+    tsave_updater: Updater,
+    opt_state: TransformInitFn,
     jump_ops: list[Array],
     exp_ops: list[Array],
     solver: Solver,
@@ -135,9 +148,10 @@ def step(
     """
     grads, infids = jax.grad(loss, has_aux=True)(
         params_to_optimize,
-        hamiltonian_time_update,
-        initial_states,
         costs,
+        hamiltonian_updater,
+        initial_states,
+        tsave_updater,
         jump_ops,
         exp_ops,
         solver,
@@ -150,15 +164,17 @@ def step(
 
 def loss(
     params_to_optimize: Array,
-    hamiltonian_time_update: HamiltonianTimeUpdater,
-    initial_states: Array,
     costs: list[Cost],
+    hamiltonian_updater: Updater,
+    initial_states: Array,
+    tsave_updater: Updater,
     jump_ops: Array,
     exp_ops: Array,
     solver: Solver,
     options: GRAPEOptions,
 ) -> [float, Array]:
-    H, tsave = hamiltonian_time_update.update(params_to_optimize)
+    H = hamiltonian_updater.update(params_to_optimize)
+    tsave = tsave_updater.update(params_to_optimize)
     if options.grape_type == 0:
         results = dq.sesolve(H, initial_states, tsave, solver=solver, options=options)
     elif options.grape_type == 1:

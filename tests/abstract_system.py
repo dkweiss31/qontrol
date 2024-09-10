@@ -5,7 +5,7 @@ from dynamiqs import mesolve, modulated, sesolve
 from jax import Array
 
 import qontrol
-from qontrol import hamiltonian_time_updater
+from qontrol import updater
 
 
 class AbstractSystem:
@@ -20,12 +20,12 @@ class AbstractSystem:
         self.tsave = tsave
         self.options = options
 
-    def assert_correctness(self, opt_params, H_t_updater, infid_cost):
-        opt_H, tsave = H_t_updater.update(opt_params)
+    def assert_correctness(self, opt_params, H_updater, infid_cost):
+        opt_H = H_updater.update(opt_params)
         if self.options.grape_type == 0:  # sesolve
-            opt_result = sesolve(opt_H, self.initial_states, tsave)
+            opt_result = sesolve(opt_H, self.initial_states, self.tsave)
         else:  # mesolve
-            opt_result = mesolve(opt_H, self.jump_ops, self.initial_states, tsave)
+            opt_result = mesolve(opt_H, self.jump_ops, self.initial_states, self.tsave)
         infid = infid_cost.evaluate(opt_result, opt_H)
         assert infid < 1 - self.options.target_fidelity
 
@@ -44,22 +44,19 @@ class AbstractSystem:
                 H += modulated(drive_spline.evaluate, H1)
             return H
 
-        def update_function(H, drive_params_dict):
-            new_H = H(drive_params_dict)
-            return new_H, self.tsave
-
-        H_t_updater = hamiltonian_time_updater(H_func, update_function)
+        H_updater = updater(lambda dp: H_func(dp))
         optimizer = optax.adam(0.0001, b1=0.99, b2=0.99)
 
         opt_params = qontrol.grape(
-            H_t_updater,
-            self.initial_states,
             init_drive_params,
-            costs=costs,
+            costs,
+            H_updater,
+            self.initial_states,
+            tsave=self.tsave,
             jump_ops=self.jump_ops,
             options=self.options,
             filepath=filepath,
             optimizer=optimizer,
         )
 
-        return opt_params, H_t_updater
+        return opt_params, H_updater
