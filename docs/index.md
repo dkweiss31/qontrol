@@ -19,7 +19,7 @@ Optimal control of a Kerr oscillator
 import jax.numpy as jnp
 import optax
 from dynamiqs import basis, destroy, pwc, dag
-from optamiqs import GRAPEOptions, grape, hamiltonian_time_updater, coherent_infidelity
+from qontrol import GRAPEOptions, grape, hamiltonian_time_updater, coherent_infidelity
 
 dim = 5
 a = destroy(5)

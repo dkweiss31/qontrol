@@ -1,5 +1,5 @@
 [project]
-name = "optamiqs"
+name = "qontrol"
 version = "0.1.0"
 requires-python = ">=3.9"
 description = "Optimal control wrapper of dynamiqs."
@@ -99,7 +99,7 @@ cmd = 'echo "\n>>> ruff format" && ruff format'
 help = "auto-format the code (ruff)"
 
 [tool.taskipy.tasks.codespell]
-cmd = 'echo "\n>>> codespell" && codespell tests optamiqs'
+cmd = 'echo "\n>>> codespell" && codespell tests qontrol'
 help = "check for misspellings (codespell)"
 
 [tool.taskipy.tasks.clean]

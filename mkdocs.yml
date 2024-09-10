@@ -1,9 +1,9 @@
 site_name: optamiqs
 site_description: Documentation for the optamiqs software library
 site_author: Daniel Weiss
-site_url: https://github.com/dkweiss31/optamiqs
+site_url: https://github.com/dkweiss31/qontrol
 
-repo_url: https://github.com/dkweiss31/optamiqs
+repo_url: https://github.com/dkweiss31/qontrol
 repo_name: dkweiss31/optamiqs
 edit_uri: ""
 

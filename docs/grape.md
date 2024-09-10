@@ -4,21 +4,21 @@ The **optamiqs** Python API consists mainly of the function **grape** which perf
 
 ## GRAPE
 
-::: optamiqs.grape
+::: qontrol.grape
 
 ## Cost functions
 
-::: optamiqs.cost
+::: qontrol.cost
 
 ## Optimizer updater
 
-::: optamiqs.hamiltonian_time
+::: qontrol.hamiltonian_time
 
 ## Options
 
-::: optamiqs.options
+::: qontrol.options
 
 ## File utilities
 
-::: optamiqs.file_io
+::: qontrol.file_io
 

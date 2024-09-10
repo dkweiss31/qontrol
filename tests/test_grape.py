@@ -3,11 +3,11 @@ import jax.random
 import pytest
 from dynamiqs import basis, dag, destroy, todm
 
-import optamiqs
-from optamiqs import (
+from qontrol import (
     GRAPEOptions,
     coherent_infidelity,
     control_area,
+    control_norm,
     extract_info_from_h5,
     forbidden_states,
     incoherent_infidelity,
@@ -68,7 +68,7 @@ def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
     if cost == '':
         pass
     elif cost == 'norm':
-        costs += [optamiqs.control_norm(2.0 * jnp.pi * 0.005, cost_multiplier=0.1)]
+        costs += [control_norm(2.0 * jnp.pi * 0.005, cost_multiplier=0.1)]
     elif cost == 'area':
         costs += [control_area(cost_multiplier=0.001)]
     elif cost == 'forbid':

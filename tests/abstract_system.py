@@ -4,8 +4,8 @@ import optax
 from dynamiqs import mesolve, modulated, sesolve
 from jax import Array
 
-import optamiqs
-from optamiqs import hamiltonian_time_updater
+import qontrol
+from qontrol import hamiltonian_time_updater
 
 
 class AbstractSystem:
@@ -51,7 +51,7 @@ class AbstractSystem:
         H_t_updater = hamiltonian_time_updater(H_func, update_function)
         optimizer = optax.adam(0.0001, b1=0.99, b2=0.99)
 
-        opt_params = optamiqs.grape(
+        opt_params = qontrol.grape(
             H_t_updater,
             self.initial_states,
             init_drive_params,
