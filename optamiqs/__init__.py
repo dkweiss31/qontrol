@@ -14,6 +14,7 @@ from .file_io import generate_file_path as generate_file_path
 from .file_io import save_optimization as save_optimization
 from .file_io import write_to_h5 as write_to_h5
 from .grape import grape as grape
+from .hamiltonian_time import HamiltonianTimeUpdater as HamiltonianTimeUpdater
 from .hamiltonian_time import hamiltonian_time_updater as hamiltonian_time_updater
 from .options import GRAPEOptions as GRAPEOptions
 
