@@ -45,7 +45,7 @@ def grape(
     in the file filepath
 
     Args:
-        hamiltonian_time_update _(HamiltonianTimeUpdater)_: Class specifying
+        hamiltonian_updater _(Updater)_: Class specifying
             how to update the Hamiltonian and control times.
         initial_states _(list of array-like of shape (n, 1) or (n, n))_: Initial states.
         params_to_optimize _(dict or array-like)_: parameters to optimize
