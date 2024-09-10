@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import equinox as eqx
 import jax.tree_util as jtu
+from dynamiqs import TimeArray
+from jax import Array
+from jaxtyping import PyTree
 
 
 def hamiltonian_time_updater(
@@ -28,5 +31,5 @@ class HamiltonianTimeUpdater(eqx.Module):
     H_function: callable
     update_function: callable
 
-    def update(self, drive_params):
+    def update(self, drive_params: PyTree) -> tuple[TimeArray, Array]:
         return self.update_function(self.H_function, drive_params)

@@ -25,11 +25,11 @@ def grape(
     hamiltonian_time_update: HamiltonianTimeUpdater,
     initial_states: ArrayLike,
     params_to_optimize: ArrayLike,
+    costs: list[Cost],
     *,
-    costs: list[Cost] = None,
-    jump_ops: list[ArrayLike] = None,
-    exp_ops: list[ArrayLike] = None,
-    filepath: str = None,
+    jump_ops: ArrayLike | None = None,
+    exp_ops: ArrayLike | None = None,
+    filepath: str | None = None,
     optimizer: GradientTransformation = optax.adam(0.0001, b1=0.99, b2=0.99),  # noqa: B008
     solver: Solver = Tsit5(),  # noqa: B008
     options: GRAPEOptions = GRAPEOptions(),  # noqa: B008
@@ -95,9 +95,10 @@ def grape(
             )
             data_dict = {'infidelities': infids}
             if options.verbose:
+                elapsed_time = jnp.around(time.time() - epoch_start_time, decimals=3)
                 print(
                     f'epoch: {epoch}, fidelity: {1 - infids},'
-                    f' elapsed_time: {jnp.around(time.time() - epoch_start_time, decimals=3)} s'
+                    f' elapsed_time: {elapsed_time} s'
                 )
             if filepath is not None:
                 save_optimization(

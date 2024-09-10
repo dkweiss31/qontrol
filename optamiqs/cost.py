@@ -14,7 +14,7 @@ from jaxtyping import ArrayLike
 from .fidelity import infidelity_coherent, infidelity_incoherent
 
 
-def _operator_to_vector(states):
+def _operator_to_vector(states: Array) -> Array:
     if isdm(states):
         return operator_to_vector(states)
     return states
@@ -29,7 +29,7 @@ def incoherent_infidelity(
     $$
         F_{\rm incoherent} = \sum_{k}|\langle\psi_{t}^{k}|U(\vec{\epsilon})|\psi_{i}^{k}\rangle|^2
     $$
-    """
+    """  # noqa: E501
     target_states = jnp.asarray(target_states, dtype=cdtype())
     if isdm(target_states):
         target_states = operator_to_vector(target_states)
@@ -45,7 +45,7 @@ def coherent_infidelity(
     $$
         F_{\rm incoherent} = |\sum_{k}\langle\psi_{t}^{k}|U(\vec{\epsilon})|\psi_{i}^{k}\rangle|^2
     $$
-    """
+    """  # noqa: E501
     target_states = jnp.asarray(target_states, dtype=cdtype())
     if isdm(target_states):
         target_states = operator_to_vector(target_states)
@@ -55,9 +55,11 @@ def coherent_infidelity(
 def forbidden_states(
     forbidden_states_list: list[ArrayLike], cost_multiplier: float = 1.0
 ) -> ForbiddenStates:
-    """forbidden_states should be a list of lists of forbidden states for each
-    respective initial state. The resulting `forbid_array` has
-    dimensions sfid where f is the batch dimension over multiple forbidden states
+    """Instantiate the cost function for penalizing forbidden-state occupation.
+
+    `forbidden_states_list` should be a list of lists of forbidden states for each
+    respective initial state. The resulting `forbid_array` has dimensions sfid where f
+     is the batch dimension over multiple forbidden states
     """
     state_shape = _operator_to_vector(forbidden_states_list[0][0]).shape
     num_states = len(forbidden_states_list)
@@ -106,7 +108,8 @@ def control_norm(threshold: float, cost_multiplier: float = 1.0) -> ControlNorm:
 def control_custom(cost_fun: callable, cost_multiplier: float = 1.0) -> ControlCustom:
     r"""Cost function based on an arbitrary transformation of the controls.
 
-    Penalize the controls according to norm of the controls above some threshold according to
+    Penalize the controls according to norm of the controls above some threshold
+    according to
     $$
         C = \sum_{j}\int_{0}^{T}F(\Omega_{j}(t))dt,
     $$
@@ -116,7 +119,7 @@ def control_custom(cost_fun: callable, cost_multiplier: float = 1.0) -> ControlC
     return ControlCustom(cost_multiplier, cost_fun)
 
 
-def custom_cost(cost_fun, cost_multiplier: float = 1.0) -> CustomCost:
+def custom_cost(cost_fun: callable, cost_multiplier: float = 1.0) -> CustomCost:
     r"""A custom cost function.
 
     If the user has a specific cost function in mind not capture by predefined cost
@@ -131,14 +134,14 @@ def custom_cost(cost_fun, cost_multiplier: float = 1.0) -> CustomCost:
 class Cost(eqx.Module):
     cost_multiplier: float
 
-    def evaluate(self, result: Result, H: TimeArray):
+    def evaluate(self, result: Result, H: TimeArray) -> Array:
         raise NotImplementedError
 
 
 class IncoherentInfidelity(Cost):
     target_states: Array
 
-    def evaluate(self, result: Result, H: TimeArray):
+    def evaluate(self, result: Result, H: TimeArray) -> Array:  # noqa ARG002
         final_state = _operator_to_vector(result.final_state)
         overlaps = jnp.einsum(
             'sid,...sid->...s', jnp.conj(self.target_states), final_state
@@ -152,7 +155,7 @@ class IncoherentInfidelity(Cost):
 class CoherentInfidelity(Cost):
     target_states: Array
 
-    def evaluate(self, result: Result, H: TimeArray):
+    def evaluate(self, result: Result, H: TimeArray) -> Array:  # noqa ARG002
         final_state = _operator_to_vector(result.final_state)
         overlaps = jnp.einsum(
             'sid,...sid->...s', jnp.conj(self.target_states), final_state
@@ -168,7 +171,7 @@ class CoherentInfidelity(Cost):
 class ForbiddenStates(Cost):
     forbidden_states: Array
 
-    def evaluate(self, result: Result, H: TimeArray):
+    def evaluate(self, result: Result, H: TimeArray) -> Array:  # noqa ARG002
         # states has dims ...stid, where s is initial_states batching, t has
         # dimension of tsave and id are the state dimensions.
         states = _operator_to_vector(result.states)
@@ -180,8 +183,8 @@ class ForbiddenStates(Cost):
 
 
 class Control(Cost):
-    def evaluate_controls(self, result: Result, H: TimeArray, func):
-        def _evaluate_at_tsave(_H):
+    def evaluate_controls(self, result: Result, H: TimeArray, func: callable) -> Array:
+        def _evaluate_at_tsave(_H: TimeArray) -> Array:
             if hasattr(_H, 'prefactor'):
                 return jnp.sum(func(vmap(_H.prefactor)(result.tsave)))
             else:
@@ -202,21 +205,21 @@ class Control(Cost):
 class ControlNorm(Control):
     threshold: float
 
-    def evaluate(self, result: Result, H: TimeArray):
+    def evaluate(self, result: Result, H: TimeArray) -> Array:
         return self.evaluate_controls(
             result, H, lambda x: jax.nn.relu(jnp.abs(x) - self.threshold)
         )
 
 
 class ControlArea(Control):
-    def evaluate(self, result: Result, H: TimeArray):
+    def evaluate(self, result: Result, H: TimeArray) -> Array:
         return self.evaluate_controls(result, H, lambda x: x)
 
 
 class ControlCustom(Control):
     cost_fun: callable
 
-    def evaluate(self, result: Result, H: TimeArray):
+    def evaluate(self, result: Result, H: TimeArray) -> Array:
         return self.evaluate_controls(result, H, self.cost_fun)
 
 
@@ -249,7 +252,7 @@ class MCInfidelity(Cost):
         self.no_jump_weight = no_jump_weight
         self.jump_weight = jump_weight
 
-    def evaluate(self, result: Result, H: TimeArray):
+    def evaluate(self, result: Result, H: TimeArray) -> Array:  # noqa ARG002
         final_jump_states = unit(result.final_jump_states).swapaxes(-4, -3)
         final_no_jump_states = unit(result.final_no_jump_state)
         infids_jump = self.infid_func(final_jump_states, self.target_states_traj)
@@ -263,5 +266,5 @@ class MCInfidelity(Cost):
 class CustomCost(Control):
     cost_fun: callable
 
-    def evaluate(self, result: Result, H: TimeArray):
+    def evaluate(self, result: Result, H: TimeArray) -> Array:
         return self.cost_fun(result, H)
