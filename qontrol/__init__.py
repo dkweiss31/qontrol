@@ -2,8 +2,8 @@ from importlib.metadata import version
 
 from .cost import coherent_infidelity as coherent_infidelity
 from .cost import control_area as control_area
-from .cost import control_custom as control_custom
 from .cost import control_norm as control_norm
+from .cost import custom_control_cost as custom_control_cost
 from .cost import custom_cost as custom_cost
 from .cost import forbidden_states as forbidden_states
 from .cost import incoherent_infidelity as incoherent_infidelity

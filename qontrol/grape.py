@@ -36,7 +36,7 @@ def grape(
     solver: Solver = Tsit5(),  # noqa: B008
     options: GRAPEOptions = GRAPEOptions(),  # noqa: B008
     init_params_to_save: dict | None = None,
-) -> Array:
+) -> Array | dict:
     r"""Perform gradient descent to optimize Hamiltonian parameters.
 
     This function takes as input a list of initial_states and a list of
@@ -45,15 +45,19 @@ def grape(
     in the file filepath
 
     Args:
-        hamiltonian_updater _(Updater)_: Class specifying
-            how to update the Hamiltonian and control times.
-        initial_states _(list of array-like of shape (n, 1) or (n, n))_: Initial states.
         params_to_optimize _(dict or array-like)_: parameters to optimize
             over that are used to define the Hamiltonian and control times.
         costs _(list of Cost instances)_: List of cost functions used to perform the
             optimization.
-        jump_ops _(list of array-like)_: Jump operators to use if performing mcsolve or
-            mesolve optimizations, not utilized if performing sesolve optimizations.
+        hamiltonian_updater _(Updater)_: Class specifying
+            how to update the Hamiltonian and control times.
+        initial_states _(list of array-like of shape (n, 1) or (n, n))_: Initial states.
+        tsave _(array like)_: Times passed to dynamiqs sesolve or mesolve
+        tsave_updater _(Updater)_: Updater for tsave that adjusts the control times for
+            time-optimal control. One of tsave or tsave_updater need to be passed, but
+            not both.
+        jump_ops _(list of array-like)_: Jump operators to use if performing mesolve
+            optimizations, not utilized if performing sesolve optimizations.
         exp_ops _(list of array-like)_: Operators to calculate expectation values of,
             in case some of the cost functions depend on the value of certain
             expectation values.
@@ -74,6 +78,7 @@ def grape(
     if jump_ops is not None:
         jump_ops = [_astimearray(L) for L in jump_ops]
     exp_ops = jnp.asarray(exp_ops, dtype=cdtype()) if exp_ops is not None else None
+
     if tsave is None and tsave_updater is None:
         raise ValueError('one of tsave or tsave_updater need to not be None')
     if tsave is not None and tsave_updater is not None:
@@ -82,10 +87,12 @@ def grape(
             f'{tsave} for tsave and {tsave_updater} for tsave_updater'
         )
     if tsave_updater is None:
-        tsave_updater = updater(lambda _: tsave)
-    opt_state = optimizer.init(params_to_optimize)
+        tsave_updater = updater(lambda _: jnp.asarray(tsave))
     init_tsave = tsave_updater.update(params_to_optimize)
     init_param_dict = options.__dict__ | {'tsave': init_tsave} | init_params_to_save
+
+    opt_state = optimizer.init(params_to_optimize)
+
     if options.verbose and filepath is not None:
         print(f'saving results to {filepath}')
     try:  # trick for catching keyboard interrupt
@@ -135,8 +142,8 @@ def step(
     initial_states: Array,
     tsave_updater: Updater,
     opt_state: TransformInitFn,
-    jump_ops: list[Array],
-    exp_ops: list[Array],
+    jump_ops: list[dq.TimeArray],
+    exp_ops: Array,
     solver: Solver,
     options: GRAPEOptions,
     optimizer: GradientTransformation,

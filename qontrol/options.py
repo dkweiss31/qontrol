@@ -11,14 +11,14 @@ class GRAPEOptions(Options):
             optimization terminates. Set to 1.0 for the optimization to run through
             all epochs.
         epochs: Number of optimization epochs.
-        grape_type: int that specifies if we are doing sesolve or mesolve optimization.
+        grape_type: str that specifies if we are doing sesolve or mesolve optimization.
         rng_seed: rng seed for mcsolve.
     """
 
     verbose: bool
     target_fidelity: float
     epochs: int
-    grape_type: int
+    grape_type: str
     rng_seed: int
 
     def __init__(
