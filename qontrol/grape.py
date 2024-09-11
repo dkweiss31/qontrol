@@ -11,7 +11,6 @@ from dynamiqs._utils import cdtype
 from dynamiqs.integrators._utils import _astimearray
 from dynamiqs.solver import Solver, Tsit5
 from jax import Array
-from jax.random import PRNGKey
 from jaxtyping import ArrayLike
 from optax import GradientTransformation, TransformInitFn
 
@@ -199,8 +198,7 @@ def loss(
         )
     else:
         raise ValueError(
-            f"grape_type can be 'sesolve' or 'mesolve' but got"
-            f'{options.grape_type}'
+            f"grape_type can be 'sesolve' or 'mesolve' but got" f'{options.grape_type}'
         )
     # manual looping here because costs is a list of classes, not straightforward to
     # call vmap on

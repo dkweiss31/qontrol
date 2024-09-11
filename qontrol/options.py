@@ -34,8 +34,7 @@ class GRAPEOptions(Options):
             grape_type = 1
         else:
             raise ValueError(
-                f"grape_type can be 'sesolve' or 'mesolve' but got"
-                f'{grape_type}'
+                f"grape_type can be 'sesolve' or 'mesolve' but got" f'{grape_type}'
             )
         self.verbose = verbose
         self.target_fidelity = target_fidelity
