@@ -58,7 +58,7 @@ opt_params = grape(
     options=GRAPEOptions(save_states=False, progress_meter=None),
 )
 ```
-The `updater` function is necessary because we have to tell the optimizer how to update the Hamiltonian once `params_to_optimize` are updated in each round of the optimization. In more complex examples we can also perform time-optimal control where the control times themselves are optimized, see [here](examples/) for example.
+The `updater` function is necessary because we have to tell the optimizer how to update the Hamiltonian once `params_to_optimize` are updated in each round of the optimization. In more complex examples we can also perform time-optimal control where the control times themselves are optimized, see [here](https://github.com/dkweiss31/qontrol/blob/main/docs/examples/Kerr_oscillator.ipynb) for example.
 
 ## Jump in
 
