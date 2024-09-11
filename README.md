@@ -62,4 +62,19 @@ The `updater` function is necessary because we have to tell the optimizer how to
 
 ## Jump in
 
-If this has piqued your interest, please see the example jupyter notebooks that demonstrate different use cases of `qontrol`, including optimizing qubit pulses to be robust to frequency variations [here](https://github.com/dkweiss31/qontrol/blob/main/docs/examples/qubit.ipynb) as well as performing time-optimal control and master-equation optimization [here](https://github.com/dkweiss31/qontrol/blob/main/docs/examples/Kerr_oscillator.ipynb). Happy optimizing!
+If this has piqued your interest, please see the example jupyter notebooks that demonstrate different use cases of `qontrol`, including optimizing qubit pulses to be robust to frequency variations [here](https://github.com/dkweiss31/qontrol/blob/main/docs/examples/qubit.ipynb) as well as performing time-optimal control and master-equation optimization [here](https://github.com/dkweiss31/qontrol/blob/main/docs/examples/Kerr_oscillator.ipynb). More examples coming soon!
+
+## Citation
+
+If you found this package useful in academic work, please cite
+
+```bibtex
+@unpublished{qontrol2024,
+  title  = {qontrol: Quantum optimal control based on dynamiqs, diffrax and JAX},
+  author = {Daniel K. Weiss},
+  year   = {2024},
+  url    = {https://github.com/dkweiss31/qontrol}
+}
+```
+
+Also please consider starring the project on [github](https://github.com/dkweiss31/qontrol/)!
