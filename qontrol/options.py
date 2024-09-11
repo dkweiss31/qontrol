@@ -12,14 +12,12 @@ class GRAPEOptions(Options):
             all epochs.
         epochs: Number of optimization epochs.
         grape_type: str that specifies if we are doing sesolve or mesolve optimization.
-        rng_seed: rng seed for mcsolve.
     """
 
     verbose: bool
     target_fidelity: float
     epochs: int
     grape_type: str
-    rng_seed: int
 
     def __init__(
         self,
@@ -27,7 +25,6 @@ class GRAPEOptions(Options):
         target_fidelity: float = 0.9995,
         epochs: int = 1000,
         grape_type: str = 'sesolve',
-        rng_seed: int = 31,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -35,15 +32,12 @@ class GRAPEOptions(Options):
             grape_type = 0
         elif grape_type == 'mesolve':
             grape_type = 1
-        elif grape_type == 'mcsolve':
-            grape_type = 2
         else:
             raise ValueError(
-                f"grape_type can be 'sesolve', 'mesolve', or 'mcsolve' but got"
+                f"grape_type can be 'sesolve' or 'mesolve' but got"
                 f'{grape_type}'
             )
         self.verbose = verbose
         self.target_fidelity = target_fidelity
         self.epochs = epochs
         self.grape_type = grape_type
-        self.rng_seed = rng_seed

@@ -57,4 +57,4 @@ The `updater` function is necessary because we have to tell the optimizer how to
 
 ## Jump in
 
-If this has piqued your interest, please see the example jupyter notebooks that demonstrate different use cases of `qontrol`, including optimizing qubit pulses to be robust to frequency variations [here](examples/qubit) as well as performing [time-optimal control](examples/Kerr_oscillator#time-optimal-control) and [master-equation optimization](examples/Kerr_oscillator#master-equation-optimization). Happy optimizing!
+If this has piqued your interest, please see the example jupyter notebooks that demonstrate different use cases of `qontrol`, including optimizing gates on a qubit to be [robust to frequency variations](examples/qubit) as well as performing [time-optimal control](examples/Kerr_oscillator#time-optimal-control) and [master-equation optimization](examples/Kerr_oscillator#master-equation-optimization). Happy optimizing!

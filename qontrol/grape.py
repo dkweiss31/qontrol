@@ -20,6 +20,9 @@ from .file_io import save_optimization
 from .options import GRAPEOptions
 from .update import Updater, updater
 
+SEGRAPE = 0
+MEGRAPE = 1
+
 
 def grape(
     params_to_optimize: ArrayLike,
@@ -182,9 +185,9 @@ def loss(
 ) -> [float, Array]:
     H = hamiltonian_updater.update(params_to_optimize)
     tsave = tsave_updater.update(params_to_optimize)
-    if options.grape_type == 0:
+    if options.grape_type == SEGRAPE:
         results = dq.sesolve(H, initial_states, tsave, solver=solver, options=options)
-    elif options.grape_type == 1:
+    elif options.grape_type == MEGRAPE:
         results = dq.mesolve(
             H,
             jump_ops,
@@ -194,20 +197,9 @@ def loss(
             solver=solver,
             options=options,
         )
-    elif options.grape_type == 2:
-        results = dq.mcsolve(
-            H,
-            jump_ops,
-            initial_states,
-            tsave,
-            key=PRNGKey(options.rng_seed),
-            exp_ops=exp_ops,
-            solver=solver,
-            options=options,
-        )
     else:
         raise ValueError(
-            f"grape_type can be 'sesolve', 'mesolve', or 'mcsolve' but got"
+            f"grape_type can be 'sesolve' or 'mesolve' but got"
             f'{options.grape_type}'
         )
     # manual looping here because costs is a list of classes, not straightforward to
