@@ -1,5 +1,7 @@
 # Contributing to qontrol
 
+We welcome your contribution, whether it be additional cost functions, new functionality, better documentation, etc.
+
 ## Requirements
 
 The project was written using Python 3.10+, you must have a compatible version of Python (i.e. >= 3.10) installed on your computer.

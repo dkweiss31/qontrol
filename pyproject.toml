@@ -9,6 +9,8 @@ dependencies = [
     "jax",
     "jaxlib",
     "jaxtyping",
+    "jupyter",
+    "h5py",
     "diffrax>=0.5.1",
     "equinox",
     "ipython",
