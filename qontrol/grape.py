@@ -76,9 +76,16 @@ def grape(
     """
     if init_params_to_save is None:
         init_params_to_save = {}
+
     initial_states = jnp.asarray(initial_states, dtype=cdtype())
+    if jump_ops is not None and options.grape_type == SEGRAPE:
+        raise ValueError("Jump operators have been passed but "
+                         "options.grape_type=='sesolve'")
+    if jump_ops is None and options.grape_type != MEGRAPE:
+        raise ValueError("No jump operators have been passed but"
+                         "options.grape_type=='mesolve'")
     if jump_ops is not None:
-        jump_ops = [_astimearray(L) for L in jump_ops]
+        jump_ops = [_astimearray(L) for L in jump_ops] if len(jump_ops) > 0 else None
     exp_ops = jnp.asarray(exp_ops, dtype=cdtype()) if exp_ops is not None else None
 
     if tsave is None and tsave_updater is None:
@@ -185,7 +192,9 @@ def loss(
     H = hamiltonian_updater.update(params_to_optimize)
     tsave = tsave_updater.update(params_to_optimize)
     if options.grape_type == SEGRAPE:
-        results = dq.sesolve(H, initial_states, tsave, solver=solver, options=options)
+        results = dq.sesolve(
+            H, initial_states, tsave, exp_ops=exp_ops, solver=solver, options=options
+        )
     elif options.grape_type == MEGRAPE:
         results = dq.mesolve(
             H,
