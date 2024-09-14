@@ -24,7 +24,7 @@ Optimal control of a Kerr oscillator, with piece-wise constant drives on the I a
 import jax.numpy as jnp
 import optax
 from dynamiqs import basis, destroy, pwc, dag
-from qontrol import GRAPEOptions, grape, updater, coherent_infidelity
+import qontrol as qtrl
 
 dim = 5
 a = destroy(5)
@@ -45,20 +45,22 @@ def H_pwc(drive_params):
     return H
 
 
+Kerr_model = qtrl.sesolve_model(H_pwc, initial_states, tsave)
+
 params_to_optimize = -0.001 * jnp.ones((len(H1s), ntimes - 1))
-costs = [coherent_infidelity(target_states=target_states), ]
-H_update = updater(lambda _dp: H_pwc(_dp))
-opt_params = grape(
+costs = [qtrl.coherent_infidelity(target_states=target_states), ]
+
+opt_params = qtrl.optimize(
     params_to_optimize,
     costs,
-    H_update,
-    initial_states,
-    tsave=tsave,
+    Kerr_model,
     optimizer=optax.adam(learning_rate=0.0001),
-    options=GRAPEOptions(save_states=False, progress_meter=None),
+    options=qtrl.OptimizerOptions(save_states=False, progress_meter=None),
 )
 ```
-The `updater` function is necessary because we have to tell the optimizer how to update the Hamiltonian once `params_to_optimize` are updated in each round of the optimization. In more complex examples we can also perform time-optimal control where the control times themselves are optimized, see [here](https://github.com/dkweiss31/qontrol/blob/main/docs/examples/Kerr_oscillator.ipynb) for example.
+We initialize the `sesolve_model` which when called with `parameters` as input runs `sesolve`
+and returns that result as well as the updated Hamiltonian. These are in turn passed to 
+the cost functions, which tell the optimizer how to update `parameters`.
 
 ## Jump in
 
