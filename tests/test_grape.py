@@ -1,19 +1,24 @@
+import diffrax as dx
 import jax.numpy as jnp
 import jax.random
+import optax
 import pytest
-from dynamiqs import basis, dag, destroy, todm
+from dynamiqs import basis, dag, destroy, modulated, todm
+from dynamiqs.solver import Tsit5
+from jax import Array
 
 from qontrol import (
-    GRAPEOptions,
+    OptimizerOptions,
     coherent_infidelity,
     control_area,
     control_norm,
     extract_info_from_h5,
     forbidden_states,
     incoherent_infidelity,
+    mesolve_model,
+    optimize,
+    sesolve_model,
 )
-
-from .abstract_system import AbstractSystem
 
 
 def _filepath(path):
@@ -32,10 +37,25 @@ def setup_Kerr_osc(nH=None):
     H0 = -0.5 * 0.2 * dag(a) @ dag(a) @ a @ a
     H0 += jnp.einsum('...,ij->...ij', freq_shifts, dag(a) @ a)
     H1s = [a + dag(a), 1j * (a - dag(a))]
-    initial_states = [basis(dim, 0), basis(dim, 1)]
+    psi0 = [basis(dim, 0), basis(dim, 1)]
     target_states = [-1j * basis(dim, 1), 1j * basis(dim, 0)]
     tsave = jnp.linspace(0, 40.0, int(40.0 // 2.0) + 1)
-    return H0, H1s, tsave, initial_states, target_states
+
+    init_drive_params = {'dp': -0.001 * jnp.ones((len(H1s), len(tsave)))}
+
+    def _drive_spline(drive_params: Array) -> dx.CubicInterpolation:
+        drive_coeffs = dx.backward_hermite_coefficients(tsave, drive_params)
+        return dx.CubicInterpolation(tsave, drive_coeffs)
+
+    def H_func(drive_params_dict: dict) -> Array:
+        drive_params = drive_params_dict['dp']
+        H = H0
+        for H1, drive_param in zip(H1s, drive_params):
+            drive_spline = _drive_spline(drive_param)
+            H += modulated(drive_spline.evaluate, H1)
+        return H
+
+    return H_func, tsave, psi0, init_drive_params, target_states
 
 
 @pytest.mark.parametrize('grape_type', ['sesolve', 'mesolve'])
@@ -44,27 +64,25 @@ def setup_Kerr_osc(nH=None):
 @pytest.mark.parametrize('nH', [(), (2,), (2, 3)])
 def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
     filepath = _filepath(tmp_path)
-    H0, H1s, tsave, initial_states, target_states = setup_Kerr_osc(nH)
-    options = GRAPEOptions(
-        target_fidelity=0.99, epochs=4000, progress_meter=None, grape_type=grape_type
+    H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc(nH)
+    optimizer_options = OptimizerOptions(
+        target_fidelity=0.99, epochs=4000, progress_meter=None
     )
     # only utilized if cost == "forbid"
-    dim = H0.shape[-1]
+    dim = H_func(init_drive_params).shape[-1]
     _forbidden_states = [basis(dim, idx) for idx in range(2, dim)]
     if grape_type == 'mesolve':
         jump_ops = [0.0001 * destroy(dim)]
-        initial_states = todm(initial_states)
+        psi0 = todm(psi0)
         target_states = todm(target_states)
         _forbidden_states = todm(_forbidden_states)
+        model = mesolve_model(H_func, jump_ops, psi0, tsave)
     else:
-        jump_ops = []
-    KerrGRAPE = AbstractSystem(
-        H0, H1s, jump_ops, initial_states, target_states, tsave, options
-    )
+        model = sesolve_model(H_func, psi0, tsave)
     if infid_cost == 'coherent':
-        costs = [coherent_infidelity(KerrGRAPE.target_states)]
+        costs = [coherent_infidelity(target_states)]
     else:
-        costs = [incoherent_infidelity(KerrGRAPE.target_states)]
+        costs = [incoherent_infidelity(target_states)]
     if cost == '':
         pass
     elif cost == 'norm':
@@ -72,25 +90,42 @@ def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
     elif cost == 'area':
         costs += [control_area(cost_multiplier=0.001)]
     elif cost == 'forbid':
-        forbidden_states_list = len(KerrGRAPE.initial_states) * [_forbidden_states]
+        forbidden_states_list = len(psi0) * [_forbidden_states]
         costs += [forbidden_states(forbidden_states_list=forbidden_states_list)]
     else:
         pass
-    opt_params, H_t_updater = KerrGRAPE.run(costs, filepath)
-    KerrGRAPE.assert_correctness(opt_params, H_t_updater, costs[0])
+    optimizer = optax.adam(0.0001, b1=0.99, b2=0.99)
+    opt_params = optimize(
+        init_drive_params,
+        costs,
+        model,
+        filepath=filepath,
+        optimizer=optimizer,
+        options=optimizer_options,
+    )
+    opt_result, opt_H = model(opt_params, Tsit5(), None, optimizer_options)
+    infid = costs[0].evaluate(opt_result, opt_H)
+    assert infid < 1 - optimizer_options.target_fidelity
 
 
 def test_reinitialize(tmp_path):
     filepath = _filepath(tmp_path)
-    H0, H1s, tsave, initial_states, target_states = setup_Kerr_osc()
-    options = GRAPEOptions(
-        target_fidelity=0.99, epochs=4000, progress_meter=None, grape_type='sesolve'
+    H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc()
+    model = sesolve_model(H_func, psi0, tsave)
+    optimizer_options = OptimizerOptions(
+        target_fidelity=0.99, epochs=4000, progress_meter=None
     )
-    KerrGRAPE = AbstractSystem(
-        H0, H1s, [], initial_states, target_states, tsave, options
+    costs = [coherent_infidelity(target_states)]
+    optimizer = optax.adam(0.0001, b1=0.99, b2=0.99)
+    opt_params = optimize(
+        init_drive_params,
+        costs,
+        model,
+        filepath=filepath,
+        optimizer=optimizer,
+        options=optimizer_options,
     )
-    costs = [coherent_infidelity(KerrGRAPE.target_states)]
-    _, H_t_updater = KerrGRAPE.run(costs, filepath)
     data_dict, _ = extract_info_from_h5(filepath)
-    opt_params = {'dp': data_dict['dp'][-1]}  # take the last entry
-    KerrGRAPE.assert_correctness(opt_params, H_t_updater, costs[0])
+    opt_result, opt_H = model(opt_params, Tsit5(), None, optimizer_options)
+    infid = costs[0].evaluate(opt_result, opt_H)
+    assert infid < 1 - optimizer_options.target_fidelity

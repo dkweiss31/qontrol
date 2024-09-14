@@ -1,10 +1,12 @@
 # Python API
 
-The **qontrol** Python API consists mainly of the function **grape** which performs optimal control, and various utility functions and classes that help to define an optimization routine (cost functions, file input output, options, etc.)
+The **qontrol** Python API consists of the function **optimize** which performs optimal control, and various models
+that can be optimized including **SESolveModel** and **MESolveModel**. There are additionally various utility functions
+and classes that help to define an optimization routine (cost functions, file input output, options, etc.)
 
-## GRAPE
+## Optimization
 
-::: qontrol.grape
+::: qontrol.optimize
     options:
         show_source: false
 
@@ -14,9 +16,9 @@ The **qontrol** Python API consists mainly of the function **grape** which perfo
     options:
         show_source: false
 
-## Optimizer updater
+## Models
 
-::: qontrol.update
+::: qontrol.model
     options:
         show_source: false
 
@@ -28,7 +30,7 @@ The **qontrol** Python API consists mainly of the function **grape** which perfo
 
 ## File utilities
 
-::: qontrol.file_io
+::: qontrol.utils.file_io
     options:
         show_source: false
 
