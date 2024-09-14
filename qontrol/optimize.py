@@ -31,10 +31,10 @@ def optimize(
 ) -> Array | dict:
     r"""Perform gradient descent to optimize Hamiltonian parameters.
 
-    This function takes as input a list of initial_states and a list of
-    target_states, and optimizes parameters to achieve the highest fidelity
-    state transfer. It saves the parameters from every epoch and the associated fidelity
-    in the file filepath
+    This function takes as input `parameters` which parametrize a `model` when called
+    performs time-dynamics simulations using dynamiqs. How to update `parameters` is encoded
+    in the list of cost functions `costs` that contains e.g. infidelity contributions, pulse
+    amplitude penalties, etc.
 
     Args:
         parameters _(dict or array-like)_: parameters to optimize
