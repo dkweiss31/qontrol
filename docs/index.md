@@ -43,7 +43,7 @@ def H_pwc(drive_params):
 Kerr_model = qtrl.sesolve_model(H_pwc, initial_states, tsave)
 
 parameters = -0.001 * jnp.ones((len(H1s), ntimes - 1))
-costs = [qtrl.coherent_infidelity(target_states=target_states), ]
+costs = qtrl.coherent_infidelity(target_states=target_states)
 
 opt_params = qtrl.optimize(
     parameters,
