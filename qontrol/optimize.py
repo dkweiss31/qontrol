@@ -20,7 +20,7 @@ from .utils.file_io import save_optimization
 
 def optimize(
     parameters: ArrayLike | dict,
-    costs: list[Cost],
+    costs: Cost,
     model: Model,
     *,
     optimizer: GradientTransformation = optax.adam(0.0001, b1=0.99, b2=0.99),  # noqa: B008
@@ -52,55 +52,66 @@ def optimize(
 
     Returns:
         optimized parameters from the final timestep
-    """
+    """  # noqa E501
     opt_state = optimizer.init(parameters)
 
     @partial(jax.jit, static_argnames=('_solver', '_gradient', '_options'))
     def step(
         _parameters: ArrayLike | dict,
-        _costs: list[Cost],
+        _costs: Cost,
         _model: Model,
         _opt_state: OptState,
         _solver: Solver,
         _gradient: Gradient,
         _options: OptimizerOptions,
     ) -> [Array, TransformInitFn, Array]:
-        grads, _infids = jax.grad(loss, has_aux=True)(
+        grads, _cost_values_terminate = jax.grad(loss, has_aux=True)(
             _parameters, _costs, _model, _solver, _gradient, _options
         )
         updates, _opt_state = optimizer.update(grads, _opt_state)
         _parameters = optax.apply_updates(_parameters, updates)
-        return _parameters, _opt_state, _infids
+        return _parameters, _opt_state, _cost_values_terminate
 
     if options.verbose and filepath is not None:
         print(f'saving results to {filepath}')
     try:  # trick for catching keyboard interrupt
         for epoch in range(options.epochs):
             epoch_start_time = time.time()
-            parameters, opt_state, infids = step(
+            parameters, opt_state, cost_values_terminate = step(
                 parameters, costs, model, opt_state, solver, gradient, options
             )
+            cost_values, terminate = cost_values_terminate
             if options.verbose:
                 elapsed_time = jnp.around(time.time() - epoch_start_time, decimals=3)
-                print(
-                    f'epoch: {epoch}, fidelity: {1 - infids},'
-                    f' elapsed_time: {elapsed_time} s'
-                )
+                message = f'epoch: {epoch}, elapsed_time: {elapsed_time} s; '
+                message += f'costs = {cost_values}'
+                print(message)
             if filepath is not None:
                 save_optimization(
                     filepath,
-                    {'infidelities': infids},
+                    {'cost_values': jnp.asarray(cost_values)},
                     parameters,
                     options.__dict__,
                     epoch,
                 )
-            if all(infids < 1 - options.target_fidelity):
-                print(f'target fidelity reached after {epoch} epochs')
-                print(f'fidelity: {1 - infids}')
+            # early termination
+            if options.all_costs and all(terminate):
+                print(
+                    f'target cost reached for all cost functions after {epoch}'
+                    f' epochs'
+                )
+                print(f'costs = {cost_values}')
+                break
+            if not options.all_costs and any(terminate):
+                print(
+                    f'target cost reached for one cost function after {epoch}'
+                    f' epochs'
+                )
+                print(f'costs = {cost_values}')
                 break
             if epoch == options.epochs - 1:
                 print('reached maximum number of allowed epochs')
-                print(f'fidelity: {1 - infids}')
+                print(f'costs = {cost_values}')
     except KeyboardInterrupt:
         print('terminated on keyboard interrupt')
     return parameters
@@ -108,17 +119,13 @@ def optimize(
 
 def loss(
     parameters: Array | dict,
-    costs: list[Cost],
+    costs: Cost,
     model: Model,
     solver: Solver,
     gradient: Gradient,
     options: OptimizerOptions,
 ) -> [float, Array]:
     result, H = model(parameters, solver, gradient, options)
-    # manual looping here because costs is a list of classes, not straightforward to
-    # call vmap on
-    cost_values = [cost.evaluate(result, H) for cost in costs]
-    # assumption is that the zeroth entry in costs is the infidelity,
-    # which we print out so that the optimization can be monitored
-    infids = cost_values[0]
-    return jnp.log(jnp.sum(jnp.asarray(cost_values))), infids[None]
+    cost_values, terminate = zip(*costs(result, H))
+    total_cost = jax.tree.reduce(jnp.add, cost_values)
+    return jnp.log(jnp.sum(jnp.asarray(total_cost))), (cost_values, terminate)

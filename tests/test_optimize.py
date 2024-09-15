@@ -19,6 +19,7 @@ from qontrol import (
     optimize,
     sesolve_model,
 )
+from qontrol.cost import SummedCost
 
 
 def _filepath(path):
@@ -66,7 +67,7 @@ def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
     filepath = _filepath(tmp_path)
     H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc(nH)
     optimizer_options = OptimizerOptions(
-        target_fidelity=0.99, epochs=4000, progress_meter=None
+        epochs=4000, progress_meter=None, all_costs=True
     )
     # only utilized if cost == "forbid"
     dim = H_func(init_drive_params).shape[-1]
@@ -80,20 +81,26 @@ def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
     else:
         model = sesolve_model(H_func, psi0, tsave)
     if infid_cost == 'coherent':
-        costs = [coherent_infidelity(target_states)]
+        costs = coherent_infidelity(target_states, target_cost=0.01)
     else:
-        costs = [incoherent_infidelity(target_states)]
+        costs = incoherent_infidelity(target_states, target_cost=0.01)
     if cost == '':
         pass
     elif cost == 'norm':
-        costs += [control_norm(2.0 * jnp.pi * 0.005, cost_multiplier=0.1)]
+        costs += 0.1 * control_norm(2.0 * jnp.pi * 0.005, target_cost=0.1)
+        assert type(costs) is SummedCost
     elif cost == 'area':
-        costs += [control_area(cost_multiplier=0.001)]
+        costs += 0.001 * control_area(target_cost=0.1)
+        assert type(costs) is SummedCost
     elif cost == 'forbid':
         forbidden_states_list = len(psi0) * [_forbidden_states]
-        costs += [forbidden_states(forbidden_states_list=forbidden_states_list)]
+        costs += forbidden_states(
+            forbidden_states_list=forbidden_states_list, target_cost=0.1
+        )
+        assert type(costs) is SummedCost
     else:
         pass
+    costs *= 1.0  # test multiplying Costs or SummedCosts
     optimizer = optax.adam(0.0001, b1=0.99, b2=0.99)
     opt_params = optimize(
         init_drive_params,
@@ -104,18 +111,16 @@ def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
         options=optimizer_options,
     )
     opt_result, opt_H = model(opt_params, Tsit5(), None, optimizer_options)
-    infid = costs[0].evaluate(opt_result, opt_H)
-    assert infid < 1 - optimizer_options.target_fidelity
+    cost_values, terminate = zip(*costs(opt_result, opt_H))
+    assert all(terminate)
 
 
 def test_reinitialize(tmp_path):
     filepath = _filepath(tmp_path)
     H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc()
     model = sesolve_model(H_func, psi0, tsave)
-    optimizer_options = OptimizerOptions(
-        target_fidelity=0.99, epochs=4000, progress_meter=None
-    )
-    costs = [coherent_infidelity(target_states)]
+    optimizer_options = OptimizerOptions(epochs=4000, progress_meter=None)
+    costs = coherent_infidelity(target_states, target_cost=0.01)
     optimizer = optax.adam(0.0001, b1=0.99, b2=0.99)
     opt_params = optimize(
         init_drive_params,
@@ -127,5 +132,5 @@ def test_reinitialize(tmp_path):
     )
     data_dict, _ = extract_info_from_h5(filepath)
     opt_result, opt_H = model(opt_params, Tsit5(), None, optimizer_options)
-    infid = costs[0].evaluate(opt_result, opt_H)
-    assert infid < 1 - optimizer_options.target_fidelity
+    cost_values, terminate = zip(*costs(opt_result, opt_H))
+    assert all(terminate)

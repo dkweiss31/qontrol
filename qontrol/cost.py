@@ -19,7 +19,7 @@ def _operator_to_vector(states: Array) -> Array:
 
 
 def incoherent_infidelity(
-    target_states: ArrayLike, cost_multiplier: float = 1.0
+    target_states: ArrayLike, cost_multiplier: float = 1.0, target_cost: float = 0.005
 ) -> IncoherentInfidelity:
     r"""Instantiate the cost function for calculating infidelity incoherently.
 
@@ -36,18 +36,25 @@ def incoherent_infidelity(
             optimization, the target states should be passed as a list of density matrices.
         cost_multiplier _(float)_: Weight for this cost function relative to other cost
             functions.
+        target_cost _(float)_: Target value for this cost function. If options.all_costs
+            is True, the optimization terminates early if all cost functions fall below
+            their target values. If options.all_costs is False, the optimization
+            terminates if only one cost function falls below its target value.
 
     Returns:
         _(IncoherentInfidelity)_: Callable object that returns the incoherent infidelity
+            and whether the infidelity is below the target value.
     """  # noqa: E501
     target_states = jnp.asarray(target_states, dtype=cdtype())
     if isdm(target_states):
         target_states = operator_to_vector(target_states)
-    return IncoherentInfidelity(cost_multiplier, target_states)
+    return IncoherentInfidelity(cost_multiplier, target_cost, target_states)
 
 
 def coherent_infidelity(
-    target_states: list[ArrayLike], cost_multiplier: float = 1.0
+    target_states: list[ArrayLike],
+    cost_multiplier: float = 1.0,
+    target_cost: float = 0.005,
 ) -> CoherentInfidelity:
     r"""Instantiate the cost function for calculating infidelity coherently.
 
@@ -64,18 +71,25 @@ def coherent_infidelity(
             optimization, the target states should be passed as a list of density matrices.
         cost_multiplier _(float)_: Weight for this cost function relative to other cost
             functions.
+        target_cost _(float)_: Target value for this cost function. If options.all_costs
+            is True, the optimization terminates early if all cost functions fall below
+            their target values. If options.all_costs is False, the optimization
+            terminates if only one cost function falls below its target value.
 
     Returns:
         _(CoherentInfidelity)_: Callable object that returns the coherent infidelity
+            and whether the infidelity is below the target value.
     """  # noqa: E501
     target_states = jnp.asarray(target_states, dtype=cdtype())
     if isdm(target_states):
         target_states = operator_to_vector(target_states)
-    return CoherentInfidelity(cost_multiplier, target_states)
+    return CoherentInfidelity(cost_multiplier, target_cost, target_states)
 
 
 def forbidden_states(
-    forbidden_states_list: list[ArrayLike], cost_multiplier: float = 1.0
+    forbidden_states_list: list[ArrayLike],
+    cost_multiplier: float = 1.0,
+    target_cost: float = 0.0,
 ) -> ForbiddenStates:
     r"""Instantiate the cost function for penalizing forbidden-state occupation.
 
@@ -97,9 +111,14 @@ def forbidden_states(
             longest forbidden-state list (with zero-padding for meaningless entries).
         cost_multiplier _(float)_: Weight for this cost function relative to other cost
             functions.
+        target_cost _(float)_: Target value for this cost function. If options.all_costs
+            is True, the optimization terminates early if all cost functions fall below
+            their target values. If options.all_costs is False, the optimization
+            terminates if only one cost function falls below its target value.
 
     Returns:
         _(ForbiddenStates)_: Callable object that returns the forbidden-state cost
+            and whether the cost is below the target value.
     """  # noqa: E501
     state_shape = _operator_to_vector(forbidden_states_list[0][0]).shape
     num_states = len(forbidden_states_list)
@@ -118,10 +137,12 @@ def forbidden_states(
             forbidden_states_list[state_idx][forbid_idx]
         )
         forbid_array = forbid_array.at[state_idx, forbid_idx].set(forbidden_state)
-    return ForbiddenStates(cost_multiplier, forbid_array)
+    return ForbiddenStates(cost_multiplier, target_cost, forbid_array)
 
 
-def control_area(cost_multiplier: float = 1.0) -> ControlArea:
+def control_area(
+    cost_multiplier: float = 1.0, target_cost: float = 0.0
+) -> ControlCostArea:
     r"""Control area cost function.
 
     Penalize the area under the pulse curves according to
@@ -133,14 +154,21 @@ def control_area(cost_multiplier: float = 1.0) -> ControlArea:
     Args:
         cost_multiplier _(float)_: Weight for this cost function relative to other cost
             functions.
+        target_cost _(float)_: Target value for this cost function. If options.all_costs
+            is True, the optimization terminates early if all cost functions fall below
+            their target values. If options.all_costs is False, the optimization
+            terminates if only one cost function falls below its target value.
 
     Returns:
         _(ControlArea)_: Callable object that returns the control-area cost
+            and whether the cost is below the target value.
     """
-    return ControlArea(cost_multiplier)
+    return ControlCostArea(cost_multiplier, target_cost)
 
 
-def control_norm(threshold: float, cost_multiplier: float = 1.0) -> ControlNorm:
+def control_norm(
+    threshold: float, cost_multiplier: float = 1.0, target_cost: float = 0.0
+) -> ControlCostNorm:
     r"""Control norm cost function.
 
     Penalize the norm of the controls above some threshold according to
@@ -155,15 +183,20 @@ def control_norm(threshold: float, cost_multiplier: float = 1.0) -> ControlNorm:
             in absolute magnitude.
         cost_multiplier _(float)_: Weight for this cost function relative to other cost
             functions.
+        target_cost _(float)_: Target value for this cost function. If options.all_costs
+            is True, the optimization terminates early if all cost functions fall below
+            their target values. If options.all_costs is False, the optimization
+            terminates if only one cost function falls below its target value.
 
     Returns:
         _(ControlNorm)_: Callable object that returns the control-norm cost
+            and whether the cost is below the target value.
     """
-    return ControlNorm(cost_multiplier, threshold)
+    return ControlCostNorm(cost_multiplier, target_cost, threshold)
 
 
 def custom_control_cost(
-    cost_fun: callable, cost_multiplier: float = 1.0
+    cost_fun: callable, cost_multiplier: float = 1.0, target_cost: float = 0.0
 ) -> CustomControlCost:
     r"""Cost function based on an arbitrary transformation of the controls.
 
@@ -176,9 +209,14 @@ def custom_control_cost(
         cost_fun _(callable)_: Cost function which must have signature `(control_amp: Array) -> Array`.
         cost_multiplier _(float)_: Weight for this cost function relative to other cost
             functions.
+        target_cost _(float)_: Target value for this cost function. If options.all_costs
+            is True, the optimization terminates early if all cost functions fall below
+            their target values. If options.all_costs is False, the optimization
+            terminates if only one cost function falls below its target value.
 
     Returns:
-        _(CustomCost)_: Callable object that returns the cost for the custom function.
+        _(CustomCost)_: Callable object that returns the cost for the custom function
+            and whether the cost is below the target value.
 
     Examples:
         ```python
@@ -191,15 +229,17 @@ def custom_control_cost(
             return jax.nn.relu(-control_amp)
 
 
-        negative_amp_cost = qtrl.custom_control_cost(penalize_negative, cost_multiplier=1.0)
+        negative_amp_cost = qtrl.custom_control_cost(penalize_negative)
         ```
         In this example, we penalize negative drive amplitudes.
     """  # noqa: E501
     cost_fun = jtu.Partial(cost_fun)
-    return CustomControlCost(cost_multiplier, cost_fun)
+    return CustomControlCost(cost_multiplier, target_cost, cost_fun)
 
 
-def custom_cost(cost_fun: callable, cost_multiplier: float = 1.0) -> CustomCost:
+def custom_cost(
+    cost_fun: callable, cost_multiplier: float = 1.0, target_cost: float = 0.0
+) -> CustomCost:
     r"""A custom cost function.
 
     In many (most!) cases, the user may want to add a cost function to their
@@ -210,6 +250,10 @@ def custom_cost(cost_fun: callable, cost_multiplier: float = 1.0) -> CustomCost:
             `(result: dq.SolveResult, H: dq.TimeArray) -> Array`.
         cost_multiplier _(float)_: Weight for this cost function relative to other cost
             functions.
+        target_cost _(float)_: Target value for this cost function. If options.all_costs
+            is True, the optimization terminates early if all cost functions fall below
+            their target values. If options.all_costs is False, the optimization
+            terminates if only one cost function falls below its target value.
 
     Returns:
         _(CustomCost)_: Callable object that returns the cost for the custom function.
@@ -230,28 +274,58 @@ def custom_cost(cost_fun: callable, cost_multiplier: float = 1.0) -> CustomCost:
             return result.expects[0, -1]
 
 
-        expect_cost = qtrl.custom_cost(penalize_expect, cost_multiplier=1.0)
+        expect_cost = qtrl.custom_cost(penalize_expect)
         ```
-        Then `expect_cost` can be added to the list of cost functions (which always
-        includes an infidelity cost function). The only thing happening under the hood is
-        that the `penalize_expect` function is passed to `jax.tree_util.Partial` to enable
-        it to be passed through jitted functions without issue.
+        Then `expect_cost` can be added to the other utilized cost functions. The only
+        thing happening under the hood is that the `penalize_expect` function is passed
+        to `jax.tree_util.Partial` to enable it to be passed through jitted functions
+        without issue.
     """  # noqa: E501
     cost_fun = jtu.Partial(cost_fun)
-    return CustomCost(cost_multiplier, cost_fun)
+    return CustomCost(cost_multiplier, target_cost, cost_fun)
 
 
 class Cost(eqx.Module):
-    cost_multiplier: float
+    def __call__(self, result: SolveResult, H: TimeArray) -> Array:
+        raise NotImplementedError
 
-    def evaluate(self, result: SolveResult, H: TimeArray) -> Array:
+    def __add__(self, other: Cost) -> SummedCost:
+        if isinstance(other, Cost):
+            return SummedCost([self, other])
+        raise NotImplementedError
+
+    def __mul__(self, other: float) -> Cost:
+        pass
+
+    def __rmul__(self, other: float) -> Cost:
+        return self * other
+
+    def __repr__(self) -> str:
+        return type(self).__name__
+
+
+class SummedCost(Cost):
+    costs: list[Cost]
+
+    def __call__(self, result: SolveResult, H: TimeArray) -> list[Array]:
+        return [cost(result, H)[0] for cost in self.costs]
+
+    def __mul__(self, y: float) -> SummedCost:
+        costs = [cost * y for cost in self.costs]
+        return SummedCost(costs)
+
+    def __add__(self, other: Cost) -> SummedCost:
+        if isinstance(other, Cost):
+            return SummedCost([*self.costs, other])
         raise NotImplementedError
 
 
 class IncoherentInfidelity(Cost):
+    cost_multiplier: float
+    target_cost: float
     target_states: Array
 
-    def evaluate(self, result: SolveResult, H: TimeArray) -> Array:  # noqa ARG002
+    def __call__(self, result: SolveResult, H: TimeArray) -> tuple[tuple[Array, Array]]:  # noqa ARG002
         final_state = _operator_to_vector(result.final_state)
         overlaps = jnp.einsum(
             'sid,...sid->...s', jnp.conj(self.target_states), final_state
@@ -259,13 +333,21 @@ class IncoherentInfidelity(Cost):
         # square before summing
         overlaps_sq = jnp.real(jnp.abs(overlaps * jnp.conj(overlaps)))
         infid = 1 - jnp.mean(overlaps_sq)
-        return self.cost_multiplier * infid
+        cost = self.cost_multiplier * infid
+        return ((cost, cost < self.target_cost),)
+
+    def __mul__(self, other: float) -> IncoherentInfidelity:
+        return IncoherentInfidelity(
+            other * self.cost_multiplier, self.target_cost, self.target_states
+        )
 
 
 class CoherentInfidelity(Cost):
+    cost_multiplier: float
+    target_cost: float
     target_states: Array
 
-    def evaluate(self, result: SolveResult, H: TimeArray) -> Array:  # noqa ARG002
+    def __call__(self, result: SolveResult, H: TimeArray) -> tuple[tuple[Array, Array]]:  # noqa ARG002
         final_state = _operator_to_vector(result.final_state)
         overlaps = jnp.einsum(
             'sid,...sid->...s', jnp.conj(self.target_states), final_state
@@ -275,13 +357,21 @@ class CoherentInfidelity(Cost):
         fids = jnp.abs(overlaps_avg * jnp.conj(overlaps_avg))
         # average over any remaining batch dimensions
         infid = 1 - jnp.mean(fids)
-        return self.cost_multiplier * infid
+        cost = self.cost_multiplier * infid
+        return ((cost, cost < self.target_cost),)
+
+    def __mul__(self, other: float) -> CoherentInfidelity:
+        return CoherentInfidelity(
+            other * self.cost_multiplier, self.target_cost, self.target_states
+        )
 
 
 class ForbiddenStates(Cost):
+    cost_multiplier: float
+    target_cost: float
     forbidden_states: Array
 
-    def evaluate(self, result: SolveResult, H: TimeArray) -> Array:  # noqa ARG002
+    def __call__(self, result: SolveResult, H: TimeArray) -> tuple[tuple[Array, Array]]:  # noqa ARG002
         # states has dims ...stid, where s is initial_states batching, t has
         # dimension of tsave and id are the state dimensions.
         states = _operator_to_vector(result.states)
@@ -289,10 +379,19 @@ class ForbiddenStates(Cost):
             '...stid,sfid->...stf', states, self.forbidden_states
         )
         forbidden_pops = jnp.real(jnp.mean(forbidden_ovlps * jnp.conj(forbidden_ovlps)))
-        return self.cost_multiplier * forbidden_pops
+        cost = self.cost_multiplier * forbidden_pops
+        return ((cost, cost < self.target_cost),)
+
+    def __mul__(self, other: float) -> ForbiddenStates:
+        return ForbiddenStates(
+            other * self.cost_multiplier, self.target_cost, self.forbidden_states
+        )
 
 
-class Control(Cost):
+class ControlCost(Cost):
+    cost_multiplier: float
+    target_cost: float
+
     def evaluate_controls(
         self, result: SolveResult, H: TimeArray, func: callable
     ) -> Array:
@@ -312,30 +411,57 @@ class Control(Cost):
 
         return self.cost_multiplier * control_val
 
+    def __mul__(self, other: float) -> ControlCost:
+        return ControlCost(other * self.cost_multiplier, self.target_cost)
 
-class ControlNorm(Control):
+
+class ControlCostNorm(ControlCost):
     threshold: float
 
-    def evaluate(self, result: SolveResult, H: TimeArray) -> Array:
-        return self.evaluate_controls(
-            result, H, lambda x: jax.nn.relu(jnp.abs(x) - self.threshold)
+    def __call__(self, result: SolveResult, H: TimeArray) -> tuple[tuple[Array, Array]]:
+        cost = jnp.abs(
+            self.evaluate_controls(
+                result, H, lambda x: jax.nn.relu(jnp.abs(x) - self.threshold)
+            )
+        )
+        return ((cost, cost < self.target_cost),)
+
+    def __mul__(self, other: float) -> ControlCostNorm:
+        return ControlCostNorm(
+            other * self.cost_multiplier, self.target_cost, self.threshold
         )
 
 
-class ControlArea(Control):
-    def evaluate(self, result: SolveResult, H: TimeArray) -> Array:
-        return self.evaluate_controls(result, H, lambda x: x)
+class ControlCostArea(ControlCost):
+    def __call__(self, result: SolveResult, H: TimeArray) -> tuple[tuple[Array, Array]]:
+        cost = jnp.abs(self.evaluate_controls(result, H, lambda x: x))
+        return ((cost, cost < self.target_cost),)
+
+    def __mul__(self, other: float) -> ControlCostArea:
+        return ControlCostArea(other * self.cost_multiplier, self.target_cost)
 
 
-class CustomControlCost(Control):
+class CustomControlCost(ControlCost):
     cost_fun: callable
 
-    def evaluate(self, result: SolveResult, H: TimeArray) -> Array:
-        return self.evaluate_controls(result, H, self.cost_fun)
+    def __call__(self, result: SolveResult, H: TimeArray) -> tuple[tuple[Array, Array]]:
+        cost = jnp.abs(self.evaluate_controls(result, H, self.cost_fun))
+        return ((cost, cost < self.target_cost),)
+
+    def __mul__(self, other: float) -> CustomControlCost:
+        return CustomControlCost(
+            other * self.cost_multiplier, self.target_cost, self.cost_fun
+        )
 
 
-class CustomCost(Control):
+class CustomCost(Cost):
+    cost_multiplier: float
+    target_cost: float
     cost_fun: callable
 
-    def evaluate(self, result: SolveResult, H: TimeArray) -> Array:
-        return self.cost_fun(result, H)
+    def __call__(self, result: SolveResult, H: TimeArray) -> tuple[tuple[Array, Array]]:
+        cost = self.cost_fun(result, H)
+        return ((cost, cost < self.target_cost),)
+
+    def __mul__(self, other: float) -> CustomCost:
+        return CustomCost(other * self.cost_multiplier, self.target_cost, self.cost_fun)
