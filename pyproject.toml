@@ -29,6 +29,7 @@ dev = [
     "codespell",
     "pygments",
     "pytest>=7.0,<8.0",
+    "pytest-xdist",
     "pymdown-extensions",
     "mkdocs",
     "mkdocs-material",
