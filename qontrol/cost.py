@@ -392,9 +392,7 @@ class ControlCost(Cost):
     cost_multiplier: float
     target_cost: float
 
-    def evaluate_controls(
-        self, result: Result, H: TimeArray, func: callable
-    ) -> Array:
+    def evaluate_controls(self, result: Result, H: TimeArray, func: callable) -> Array:
         def _evaluate_at_tsave(_H: TimeArray) -> Array:
             if hasattr(_H, 'prefactor'):
                 return jnp.sum(func(vmap(_H.prefactor)(result.tsave)))
