@@ -6,8 +6,8 @@ description = "Optimal control wrapper of dynamiqs."
 dependencies = [
     "numpy",
     "matplotlib",
-    "jax",
-    "jaxlib",
+    "jax<=0.4.31",
+    "jaxlib<=0.4.31",
     "jaxtyping",
     "jupyter",
     "h5py",
