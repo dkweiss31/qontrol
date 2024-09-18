@@ -21,42 +21,45 @@ Documentation is available at [https://dkweiss.net/qontrol/](https://dkweiss.net
 Optimal control of a Kerr oscillator, with piece-wise constant drives on the I and Q quadratures and optimizing for a `Y` gate
 
 ```python
+import dynamiqs as dq
 import jax.numpy as jnp
 import optax
-from dynamiqs import basis, destroy, pwc, dag
-import qontrol as qtrl
+import qontrol as ql
 
-dim = 5
-a = destroy(5)
-H0 = -0.5 * 0.2 * dag(a) @ dag(a) @ a @ a
-H1s = [a + dag(a), 1j * (a - dag(a))]
-initial_states = [basis(dim, 0), basis(dim, 1)]
-target_states = [-1j * basis(dim, 1), 1j * basis(dim, 0)]
+# hyper parameters
+n = 5  # system size
+K = 0.2 * 2.0 * jnp.pi  # Kerr nonlinearity
+time = 40.0  # total simulation time
+dt = 2.0  # control dt
+seed_amplitude = 1e-3  # pulse seed amplitude
+learning_rate = 1e-4  # learning rate for optimizer
 
-time = 40
-ntimes = int(time // 2.0) + 1
-tsave = jnp.linspace(0, time, ntimes)
+# define model to optimize
+a = dq.destroy(5)
+H0 = -0.5 * 0.2 * dq.dag(a) @ dq.dag(a) @ a @ a
+H1s = [a + dq.dag(a), 1j * (a - dq.dag(a))]
 
 
 def H_pwc(drive_params):
     H = H0
     for idx, _H1 in enumerate(H1s):
-        H += pwc(tsave, drive_params[idx], _H1)
+        H += dq.pwc(tsave, drive_params[idx], _H1)
     return H
 
+initial_states = [dq.basis(n, 0), dq.basis(n, 1)]
+ntimes = time // dt + 1
+tsave = jnp.linspace(0, time, ntimes)
+model = ql.sesolve_model(H_pwc, initial_states, tsave)
 
-Kerr_model = qtrl.sesolve_model(H_pwc, initial_states, tsave)
+# define optimization
+parameters = seed_amplitude * jnp.ones((len(H1s), ntimes - 1))
+target_states = [-1j * dq.basis(n, 1), 1j * dq.basis(n, 0)]
+cost = ql.cost.coherent_infidelity(target_states=target_states)
+optimizer = optax.adam(learning_rate=0.0001)
+options = ql.OptimizerOptions(save_states=False, progress_meter=None)
 
-params_to_optimize = -0.001 * jnp.ones((len(H1s), ntimes - 1))
-costs = qtrl.coherent_infidelity(target_states=target_states)
-
-opt_params = qtrl.optimize(
-    params_to_optimize,
-    costs,
-    Kerr_model,
-    optimizer=optax.adam(learning_rate=0.0001),
-    options=qtrl.OptimizerOptions(save_states=False, progress_meter=None),
-)
+# run optimization
+opt_params = ql.optimize(parameters, cost, model, optimizer=optimizer, options=options)
 ```
 We initialize the `sesolve_model` which when called with `parameters` as input runs `sesolve`
 and returns that result as well as the updated Hamiltonian. These are in turn passed to 
