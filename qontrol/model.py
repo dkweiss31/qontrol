@@ -51,7 +51,7 @@ def sesolve_model(
         from jax import Array
         import jax.np as jnp
         import dynamiqs as dq
-        import qontrol as qtrl
+        import qontrol as ql
 
         tsave = jnp.linspace(0.0, 11.0, 10)
         psi0 = [dq.basis(2, 0)]
@@ -65,7 +65,7 @@ def sesolve_model(
             return H
 
 
-        sesolve_model = qtrl.SESolveModel(H_pwc, psi0, tsave)
+        sesolve_model = ql.SESolveModel(H_pwc, psi0, tsave)
         ```
         See for example [this tutorial](../examples/qubit).
 
@@ -77,7 +77,7 @@ def sesolve_model(
         import jax.numpy as jnp
         import diffrax as dx
         import dynamiqs as dq
-        import qontrol as qtrl
+        import qontrol as ql
 
         init_drive_params_topt = {
             'dp': -0.001 * jnp.ones((len(H1s), ntimes)),
@@ -103,7 +103,7 @@ def sesolve_model(
             return jnp.linspace(0.0, drive_params_dict['t'], len(tsave))
 
 
-        se_t_opt_Kerr_model = qtrl.sesolve_model(
+        se_t_opt_Kerr_model = ql.sesolve_model(
             update_H_topt, psi0, update_tsave_topt, exp_ops=exp_ops
         )
         ```
@@ -155,7 +155,7 @@ def mesolve_model(
         ```python
         jump_ops = [0.03 * a]
         me_initial_states = dq.todm(initial_states)
-        me_Kerr_model = qtrl.mesolve_model(
+        me_Kerr_model = ql.mesolve_model(
             update_H_topt, jump_ops, me_initial_states, update_tsave_topt, exp_ops=exp_ops
         )
         ```

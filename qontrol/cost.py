@@ -222,14 +222,14 @@ def custom_control_cost(
         ```python
         import jax
         from jax import Array
-        import qontrol as qtrl
+        import qontrol as ql
 
 
         def penalize_negative(control_amp: Array) -> Array:
             return jax.nn.relu(-control_amp)
 
 
-        negative_amp_cost = qtrl.custom_control_cost(penalize_negative)
+        negative_amp_cost = ql.custom_control_cost(penalize_negative)
         ```
         In this example, we penalize negative drive amplitudes.
     """  # noqa: E501
@@ -266,7 +266,7 @@ def custom_cost(
         from dynamiqs.result import Result
         from dynamiqs.time_array import TimeArray
         from jax import Array
-        import qontrol as qtrl
+        import qontrol as ql
 
 
         def penalize_expect(result: Result, H: TimeArray) -> Array:
@@ -274,7 +274,7 @@ def custom_cost(
             return result.expects[0, -1]
 
 
-        expect_cost = qtrl.custom_cost(penalize_expect)
+        expect_cost = ql.custom_cost(penalize_expect)
         ```
         Then `expect_cost` can be added to the other utilized cost functions. The only
         thing happening under the hood is that the `penalize_expect` function is passed
