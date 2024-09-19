@@ -28,7 +28,7 @@ import qontrol as ql
 
 # hyper parameters
 n = 5  # system size
-K = 0.2 * 2.0 * jnp.pi  # Kerr nonlinearity
+K = -0.2 * 2.0 * jnp.pi  # Kerr nonlinearity
 time = 40.0  # total simulation time
 dt = 2.0  # control dt
 seed_amplitude = 1e-3  # pulse seed amplitude
@@ -36,7 +36,7 @@ learning_rate = 1e-4  # learning rate for optimizer
 
 # define model to optimize
 a = dq.destroy(5)
-H0 = -0.5 * 0.2 * dq.dag(a) @ dq.dag(a) @ a @ a
+H0 = 0.5 * K * dq.dag(a) @ dq.dag(a) @ a @ a
 H1s = [a + dq.dag(a), 1j * (a - dq.dag(a))]
 
 
