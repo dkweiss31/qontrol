@@ -119,7 +119,7 @@ def test_reinitialize(tmp_path):
     filepath = _filepath(tmp_path)
     H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc()
     model = sesolve_model(H_func, psi0, tsave)
-    optimizer_options = OptimizerOptions(epochs=4000, progress_meter=None)
+    optimizer_options = OptimizerOptions(epochs=4000, progress_meter=None, plot=False)
     costs = coherent_infidelity(target_states, target_cost=0.01)
     optimizer = optax.adam(0.0001, b1=0.99, b2=0.99)
     opt_params = optimize(
