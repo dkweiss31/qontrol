@@ -5,6 +5,7 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import optax
 from dynamiqs.gradient import Gradient
 from dynamiqs.solver import Solver, Tsit5
@@ -12,9 +13,10 @@ from jax import Array
 from jaxtyping import ArrayLike
 from optax import GradientTransformation, OptState, TransformInitFn
 
-from .cost import Cost
+from .cost import Cost, SummedCost
 from .model import Model
 from .options import OptimizerOptions
+from .plot import _plot_controls_and_loss
 from .utils.file_io import save_optimization
 
 
@@ -54,6 +56,8 @@ def optimize(
         optimized parameters from the final timestep
     """  # noqa E501
     opt_state = optimizer.init(parameters)
+    cost_values_over_epochs = []
+    epoch_times = []
 
     @partial(jax.jit, static_argnames=('_solver', '_gradient', '_options'))
     def step(
@@ -80,12 +84,18 @@ def optimize(
             parameters, opt_state, cost_values_terminate = step(
                 parameters, costs, model, opt_state, solver, gradient, options
             )
+            elapsed_time = np.around(time.time() - epoch_start_time, decimals=3)
             cost_values, terminate = cost_values_terminate
+            cost_values_over_epochs.append(cost_values)
+            epoch_times.append(elapsed_time)
             if options.verbose:
-                elapsed_time = jnp.around(time.time() - epoch_start_time, decimals=3)
-                message = f'epoch: {epoch}, elapsed_time: {elapsed_time} s; '
-                message += f'costs = {cost_values}'
-                print(message)
+                print(f'epoch: {epoch}, elapsed_time: {elapsed_time} s; ')
+                if isinstance(costs, SummedCost):
+                    for _cost, _cost_value in zip(costs.costs, cost_values):
+                        print(_cost, ' = ', _cost_value, '; ', end=' ')
+                    print('\n')
+                else:
+                    print(costs, cost_values[0])
             if filepath is not None:
                 save_optimization(
                     filepath,
@@ -93,6 +103,10 @@ def optimize(
                     parameters,
                     options.__dict__,
                     epoch,
+                )
+            if options.plot and epoch % options.plot_period == 0:
+                _plot_controls_and_loss(
+                    parameters, costs, model, cost_values_over_epochs, epoch
                 )
             # early termination
             if options.all_costs and all(terminate):
@@ -113,7 +127,21 @@ def optimize(
                 print('reached maximum number of allowed epochs')
                 print(f'costs = {cost_values}')
     except KeyboardInterrupt:
-        print('terminated on keyboard interrupt')
+        print(f'terminated on keyboard interrupt after {epoch} epochs')
+    _plot_controls_and_loss(
+        parameters,
+        costs,
+        model,
+        cost_values_over_epochs,
+        len(cost_values_over_epochs) - 1,
+    )
+    print(
+        f'optimization terminated after {epoch} epochs; \n'
+        f'average epoch time (excluding jit) of '
+        f'{np.around(np.mean(epoch_times[1:]), decimals=5)} s; \n'
+        f'max epoch time of {np.max(epoch_times[1:])} s; \n'
+        f'min epoch time of {np.min(epoch_times[1:])} s'
+    )
     return parameters
 
 
