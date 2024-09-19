@@ -67,7 +67,7 @@ def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
     filepath = _filepath(tmp_path)
     H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc(nH)
     optimizer_options = OptimizerOptions(
-        epochs=4000, progress_meter=None, all_costs=True
+        epochs=4000, progress_meter=None, all_costs=True, plot=False
     )
     # only utilized if cost == "forbid"
     dim = H_func(init_drive_params).shape[-1]

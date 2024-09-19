@@ -128,13 +128,14 @@ def optimize(
                 print(f'costs = {cost_values}')
     except KeyboardInterrupt:
         print(f'terminated on keyboard interrupt after {epoch} epochs')
-    _plot_controls_and_loss(
-        parameters,
-        costs,
-        model,
-        cost_values_over_epochs,
-        len(cost_values_over_epochs) - 1,
-    )
+    if options.plot:
+        _plot_controls_and_loss(
+            parameters,
+            costs,
+            model,
+            cost_values_over_epochs,
+            len(cost_values_over_epochs) - 1,
+        )
     print(
         f'optimization terminated after {epoch} epochs; \n'
         f'average epoch time (excluding jit) of '
