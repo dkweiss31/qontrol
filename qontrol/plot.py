@@ -89,6 +89,7 @@ def _plot_controls_and_loss(  # noqa PLR0915
 
     if expects is not None:
         ax = axs[3]
+        ax.set_facecolor('none')
         expects = np.swapaxes(expects, axis1=-2, axis2=-3)
         expect_idxs = np.ndindex(*expects.shape[:-2])
         for state_idx in options.which_states_plot:
