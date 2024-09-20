@@ -271,7 +271,7 @@ def custom_cost(
 
         def penalize_expect(result: Result, H: TimeArray) -> Array:
             # 0 is the index of the operator, -1 is the time index
-            return result.expects[0, -1]
+            return jnp.sum(jnp.abs(result.expects[0, -1]))
 
 
         expect_cost = ql.custom_cost(penalize_expect)
