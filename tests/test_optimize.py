@@ -90,7 +90,7 @@ def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
         costs += 0.1 * control_norm(2.0 * jnp.pi * 0.005, target_cost=0.1)
         assert type(costs) is SummedCost
     elif cost == 'area':
-        costs += 0.001 * control_area(target_cost=0.1)
+        costs += 0.00001 * control_area(target_cost=0.1)
         assert type(costs) is SummedCost
     elif cost == 'forbid':
         forbidden_states_list = len(psi0) * [_forbidden_states]

@@ -9,18 +9,24 @@ from jax import Array
 
 from .cost import Cost, SummedCost
 from .model import Model
+from .options import OptimizerOptions
 
 
-def _plot_controls_and_loss(
+def _plot_controls_and_loss(  # noqa PLR0915
     parameters: Array | dict,
     costs: Cost,
     model: Model,
+    expects: Array | None,
     cost_values_over_epochs: list,
     epoch: int,
+    options: OptimizerOptions,
 ) -> None:
     # prevents overcrowding of plots in jupyter notebooks
     clear_output(wait=True)
-    fig, axs = plt.subplots(ncols=3, figsize=(12, 4))
+    if expects is not None:
+        fig, axs = plt.subplots(ncols=4, figsize=(16, 4))
+    else:
+        fig, axs = plt.subplots(ncols=3, figsize=(12, 4))
     fig.patch.set_alpha(0.1)
     # first plot the cost values over the range of epochs so far
     ax = axs[0]
@@ -36,7 +42,7 @@ def _plot_controls_and_loss(
     else:
         ax.plot(epoch_range, cost_values_over_epochs[0], label=str(costs))
     ax.set_yscale('log')
-    ax.legend(loc='upper right')
+    ax.legend(loc='upper right', framealpha=0.0)
     ax.set_xlabel('epochs')
     ax.set_ylabel('cost values')
 
@@ -63,7 +69,7 @@ def _plot_controls_and_loss(
         controls.append(evaluate_at_tsave(H))
     for idx, control in enumerate(controls):
         ax.plot(finer_tsave, np.real(control) / 2 / np.pi, label=f'$H_{idx}$')
-    ax.legend(loc='lower right')
+    ax.legend(loc='lower right', framealpha=0.0)
     ax.set_ylabel('pulse amplitude [GHz]')
     ax.set_xlabel('time [ns]')
 
@@ -75,9 +81,20 @@ def _plot_controls_and_loss(
         n = len(control)
         dt = finer_tsave[1] - finer_tsave[0]
         freqs = np.fft.fftfreq(n, dt)
-        ax.plot(freqs[: n // 2], np.abs(y_fft[: n // 2]))
+        ax.plot(freqs[: n // 2], np.abs(y_fft[: n // 2]), label=f'$H_{idx}$')
+    ax.legend(loc='lower right', framealpha=0.0)
     ax.set_xlabel('frequency [GHz]')
     ax.set_ylabel('fourier amplitude')
     ax.grid(True)
+
+    if expects is not None:
+        ax = axs[3]
+        expects = np.swapaxes(expects, axis1=-2, axis2=-3)
+        expect_idxs = np.ndindex(*expects.shape[:-2])
+        for state_idx in options.which_states_plot:
+            for expect_idx in expect_idxs:
+                ax.plot(tsave, np.real(expects[tuple(expect_idx)][state_idx]))
+        ax.set_xlabel('time [ns]')
+        ax.set_ylabel(f'expectation values for states {options.which_states_plot}')
     plt.tight_layout()
     plt.show()

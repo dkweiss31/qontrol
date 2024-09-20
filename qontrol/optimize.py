@@ -19,6 +19,15 @@ from .options import OptimizerOptions
 from .plot import _plot_controls_and_loss
 from .utils.file_io import save_optimization
 
+TERMINATION_MESSAGES = {
+    0: 'reached maximum number of allowed epochs;',
+    1: '`gtol` termination condition is satisfied;',
+    2: '`ftol` termination condition is satisfied;',
+    3: '`xtol` termination condition is satisfied;',
+    4: 'target cost reached for one cost function;',
+    5: 'target cost reached for all cost functions;',
+}
+
 
 def optimize(
     parameters: ArrayLike | dict,
@@ -55,9 +64,12 @@ def optimize(
     Returns:
         optimized parameters from the final timestep
     """  # noqa E501
+    # initialize
     opt_state = optimizer.init(parameters)
     cost_values_over_epochs = []
     epoch_times = []
+    previous_parameters = parameters
+    prev_total_cost = 0.0
 
     @partial(jax.jit, static_argnames=('_solver', '_gradient', '_options'))
     def step(
@@ -69,23 +81,23 @@ def optimize(
         _gradient: Gradient,
         _options: OptimizerOptions,
     ) -> [Array, TransformInitFn, Array]:
-        grads, _cost_values_terminate = jax.grad(loss, has_aux=True)(
+        grads, aux = jax.grad(loss, has_aux=True)(
             _parameters, _costs, _model, _solver, _gradient, _options
         )
         updates, _opt_state = optimizer.update(grads, _opt_state)
         _parameters = optax.apply_updates(_parameters, updates)
-        return _parameters, _opt_state, _cost_values_terminate
+        return _parameters, grads, _opt_state, aux
 
     if options.verbose and filepath is not None:
         print(f'saving results to {filepath}')
     try:  # trick for catching keyboard interrupt
         for epoch in range(options.epochs):
             epoch_start_time = time.time()
-            parameters, opt_state, cost_values_terminate = step(
+            parameters, grads, opt_state, aux = step(
                 parameters, costs, model, opt_state, solver, gradient, options
             )
             elapsed_time = np.around(time.time() - epoch_start_time, decimals=3)
-            cost_values, terminate = cost_values_terminate
+            total_cost, cost_values, terminate_for_cost, expects = aux
             cost_values_over_epochs.append(cost_values)
             epoch_times.append(elapsed_time)
             if options.verbose:
@@ -106,26 +118,29 @@ def optimize(
                 )
             if options.plot and epoch % options.plot_period == 0:
                 _plot_controls_and_loss(
-                    parameters, costs, model, cost_values_over_epochs, epoch
+                    parameters,
+                    costs,
+                    model,
+                    expects,
+                    cost_values_over_epochs,
+                    epoch,
+                    options,
                 )
             # early termination
-            if options.all_costs and all(terminate):
-                print(
-                    f'target cost reached for all cost functions after {epoch}'
-                    f' epochs'
-                )
-                print(f'costs = {cost_values}')
+            termination_key = _terminate_early(
+                grads,
+                parameters,
+                previous_parameters,
+                total_cost,
+                prev_total_cost,
+                terminate_for_cost,
+                epoch,
+                options,
+            )
+            if termination_key is not None:
                 break
-            if not options.all_costs and any(terminate):
-                print(
-                    f'target cost reached for one cost function after {epoch}'
-                    f' epochs'
-                )
-                print(f'costs = {cost_values}')
-                break
-            if epoch == options.epochs - 1:
-                print('reached maximum number of allowed epochs')
-                print(f'costs = {cost_values}')
+            previous_parameters = parameters
+            prev_total_cost = total_cost
     except KeyboardInterrupt:
         print(f'terminated on keyboard interrupt after {epoch} epochs')
     if options.plot:
@@ -133,9 +148,12 @@ def optimize(
             parameters,
             costs,
             model,
+            expects,
             cost_values_over_epochs,
             len(cost_values_over_epochs) - 1,
+            options,
         )
+    print(TERMINATION_MESSAGES[termination_key])
     print(
         f'optimization terminated after {epoch} epochs; \n'
         f'average epoch time (excluding jit) of '
@@ -157,4 +175,53 @@ def loss(
     result, H = model(parameters, solver, gradient, options)
     cost_values, terminate = zip(*costs(result, H))
     total_cost = jax.tree.reduce(jnp.add, cost_values)
-    return jnp.log(jnp.sum(jnp.asarray(total_cost))), (cost_values, terminate)
+    total_cost = jnp.log(jnp.sum(jnp.asarray(total_cost)))
+    return total_cost, (total_cost, cost_values, terminate, result.expects)
+
+
+def _terminate_early(
+    grads: Array | dict,
+    parameters: Array | dict,
+    previous_parameters: Array | dict,
+    total_cost: Array,
+    prev_total_cost: Array,
+    terminate_for_cost: list[bool],
+    epoch: int,
+    options: OptimizerOptions,
+) -> None | int:
+    termination_key = None
+    if epoch == options.epochs - 1:
+        termination_key = 0
+    # gtol and xtol
+    dx = 0.0
+    dg = 0.0
+    if isinstance(parameters, dict):
+        for (_key_new, val_new), (_key_old, val_old) in zip(
+            parameters.items(), previous_parameters.items()
+        ):
+            dx += _norm(val_new - val_old)
+        for _, grad_val in grads.items():
+            dg += _norm(grad_val)
+    else:
+        dx += _norm(parameters - previous_parameters)
+        dg += _norm(grads)
+    if dg < options.gtol:
+        termination_key = 1
+    # ftol
+    dF = np.abs(total_cost - prev_total_cost)
+    if dF < options.ftol * total_cost:
+        termination_key = 2
+    if dx < options.xtol * (options.xtol + dx):
+        termination_key = 3
+    if not options.all_costs and any(terminate_for_cost):
+        termination_key = 4
+    if options.all_costs and all(terminate_for_cost):
+        termination_key = 5
+
+    return termination_key
+
+
+def _norm(x: Array) -> Array:
+    if x.shape == ():
+        return np.abs(x)
+    return np.linalg.norm(x, ord=np.inf)
