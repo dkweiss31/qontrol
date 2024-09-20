@@ -56,7 +56,7 @@ parameters = seed_amplitude * jnp.ones((len(H1s), ntimes - 1))
 target_states = [-1j * dq.basis(n, 1), 1j * dq.basis(n, 0)]
 cost = ql.cost.coherent_infidelity(target_states=target_states)
 optimizer = optax.adam(learning_rate=0.0001)
-options = ql.OptimizerOptions(save_states=False, progress_meter=None)
+options = ql.OptimizerOptions(save_states=False, progress_meter=None, verbose=False)
 
 # run optimization
 opt_params = ql.optimize(parameters, cost, model, optimizer=optimizer, options=options)
