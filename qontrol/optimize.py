@@ -20,6 +20,7 @@ from .plot import _plot_controls_and_loss
 from .utils.file_io import save_optimization
 
 TERMINATION_MESSAGES = {
+    -1: 'terminated on keyboard interrupt',
     0: 'reached maximum number of allowed epochs;',
     1: '`gtol` termination condition is satisfied;',
     2: '`ftol` termination condition is satisfied;',
@@ -137,12 +138,12 @@ def optimize(
                 epoch,
                 options,
             )
-            if termination_key is not None:
+            if termination_key != -1:
                 break
             previous_parameters = parameters
             prev_total_cost = total_cost
     except KeyboardInterrupt:
-        print(f'terminated on keyboard interrupt after {epoch} epochs')
+        pass
     if options.plot:
         _plot_controls_and_loss(
             parameters,
@@ -189,7 +190,7 @@ def _terminate_early(
     epoch: int,
     options: OptimizerOptions,
 ) -> None | int:
-    termination_key = None
+    termination_key = -1
     if epoch == options.epochs - 1:
         termination_key = 0
     # gtol and xtol
