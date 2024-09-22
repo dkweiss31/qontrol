@@ -76,12 +76,12 @@ def _plot_controls_and_loss(  # noqa PLR0915
     # finally, plot the fft of the controls
     ax = axs[2]
     ax.set_facecolor('none')
-    for control in controls:
+    for control_idx, control in enumerate(controls):
         y_fft = np.fft.fft(control)
         n = len(control)
         dt = finer_tsave[1] - finer_tsave[0]
         freqs = np.fft.fftfreq(n, dt)
-        ax.plot(freqs[: n // 2], np.abs(y_fft[: n // 2]), label=f'$H_{idx}$')
+        ax.plot(freqs[: n // 2], np.abs(y_fft[: n // 2]), label=f'$H_{control_idx}$')
     ax.legend(loc='lower right', framealpha=0.0)
     ax.set_xlabel('frequency [GHz]')
     ax.set_ylabel('fourier amplitude')
