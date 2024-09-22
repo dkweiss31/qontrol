@@ -47,7 +47,7 @@ def H_pwc(drive_params):
     return H
 
 initial_states = [dq.basis(n, 0), dq.basis(n, 1)]
-ntimes = time // dt + 1
+ntimes = int(time // dt) + 1
 tsave = jnp.linspace(0, time, ntimes)
 model = ql.sesolve_model(H_pwc, initial_states, tsave)
 
