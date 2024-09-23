@@ -47,20 +47,28 @@ def H_pwc(drive_params):
     return H
 
 initial_states = [dq.basis(n, 0), dq.basis(n, 1)]
+# We can track the behavior of observables by passing them to the model. Here we track
+# the state populations
+exp_ops = [dq.basis(n, idx) @ dq.dag(dq.basis(n, idx)) for idx in range(n)]
 ntimes = int(time // dt) + 1
 tsave = jnp.linspace(0, time, ntimes)
-model = ql.sesolve_model(H_pwc, initial_states, tsave)
+model = ql.sesolve_model(H_pwc, initial_states, tsave, exp_ops=exp_ops)
 
 # define optimization
 parameters = seed_amplitude * jnp.ones((len(H1s), ntimes - 1))
 target_states = [-1j * dq.basis(n, 1), 1j * dq.basis(n, 0)]
-cost = ql.cost.coherent_infidelity(target_states=target_states)
+cost = ql.cost.coherent_infidelity(target_states=target_states, target_cost=0.001)
 optimizer = optax.adam(learning_rate=0.0001)
-options = ql.OptimizerOptions(save_states=False, progress_meter=None, verbose=False)
+options = ql.OptimizerOptions(
+    save_states=False, progress_meter=None, verbose=False, plot=True, plot_period=5
+)
 
 # run optimization
 opt_params = ql.optimize(parameters, cost, model, optimizer=optimizer, options=options)
 ```
+You should see the following oputput, tracking the cost function values, pulse, pulse fft and expectation 
+values over the course of the optimization 
+![Alt Text](kerr_gif.gif)
 We initialize the `sesolve_model` which when called with `parameters` as input runs `sesolve`
 and returns that result as well as the updated Hamiltonian. These are in turn passed to 
 the cost functions, which tell the optimizer how to update `parameters`.
