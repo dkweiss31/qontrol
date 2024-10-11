@@ -111,7 +111,7 @@ def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
         options=optimizer_options,
     )
     opt_result, opt_H = model(opt_params, Tsit5(), None, optimizer_options)
-    cost_values, terminate = zip(*costs(opt_result, opt_H))
+    cost_values, terminate = zip(*costs(opt_result, opt_H, opt_params))
     assert all(terminate)
 
 
@@ -132,5 +132,5 @@ def test_reinitialize(tmp_path):
     )
     data_dict, _ = extract_info_from_h5(filepath)
     opt_result, opt_H = model(opt_params, Tsit5(), None, optimizer_options)
-    cost_values, terminate = zip(*costs(opt_result, opt_H))
+    cost_values, terminate = zip(*costs(opt_result, opt_H, opt_params))
     assert all(terminate)

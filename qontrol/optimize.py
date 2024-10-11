@@ -174,7 +174,7 @@ def loss(
     options: OptimizerOptions,
 ) -> [float, Array]:
     result, H = model(parameters, solver, gradient, options)
-    cost_values, terminate = zip(*costs(result, H))
+    cost_values, terminate = zip(*costs(result, H, parameters))
     total_cost = jax.tree.reduce(jnp.add, cost_values)
     total_cost = jnp.log(jnp.sum(jnp.asarray(total_cost)))
     return total_cost, (total_cost, cost_values, terminate, result.expects)
