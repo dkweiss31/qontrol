@@ -3,6 +3,7 @@ from __future__ import annotations
 import dynamiqs as dq
 import equinox as eqx
 import jax.numpy as jnp
+import jax.random
 import jax.tree_util as jtu
 from dynamiqs import TimeArray
 from dynamiqs._utils import cdtype
@@ -119,7 +120,7 @@ def sesolve_model(
 def mesolve_model(
     H_function: callable,
     jump_ops: list[ArrayLike],
-    psi0: ArrayLike,
+    rho0: ArrayLike,
     tsave_or_function: ArrayLike | callable,
     *,
     exp_ops: list[ArrayLike] | None = None,
@@ -134,7 +135,7 @@ def mesolve_model(
         H_function _(callable)_: function specifying how to update the Hamiltonian
         jump_ops _(list of array-like or time-array, each of shape (...Lk, n, n))_:
             List of jump operators.
-        psi0 _(ArrayLike of shape (..., n, 1))_: Initial states.
+        rho0 _(ArrayLike of shape (..., n, n))_: Initial density matrices.
         tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
             array of times passed to sesolve or a method specifying how to update
             the times that are passed to sesolve
@@ -162,11 +163,63 @@ def mesolve_model(
         See [this tutorial](../examples/Kerr_oscillator#master-equation-optimization)
         for example
     """  # noqa E501
+    H_function, rho0, tsave_function, exp_ops = _initialize_model(
+        H_function, rho0, tsave_or_function, exp_ops
+    )
+    jump_ops = [_astimearray(L) for L in jump_ops]
+    return MESolveModel(H_function, rho0, tsave_function, exp_ops, jump_ops)
+
+
+def mcsolve_model(
+    H_function: callable,
+    jump_ops: list[ArrayLike],
+    psi0: ArrayLike,
+    tsave_or_function: ArrayLike | callable,
+    *,
+    exp_ops: list[ArrayLike] | None = None,
+    keys: Array = jax.random.split(jax.random.key(31), num=10),
+) -> MCSolveModel:
+    r"""Instantiate mcsolve model.
+
+    Here we instantiate the model that is called at each step of the optimization
+    iteration, returning a tuple of the result of calling `mcsolve` as well as the
+    Hamiltonian evaluated at the parameter values.
+
+    Args:
+        H_function _(callable)_: function specifying how to update the Hamiltonian
+        jump_ops _(list of array-like or time-array, each of shape (...Lk, n, n))_:
+            List of jump operators.
+        psi0 _(ArrayLike of shape (..., n, 1))_: Initial states.
+        tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
+            array of times passed to sesolve or a method specifying how to update
+            the times that are passed to sesolve
+        keys _(ArrayLike of shape (ntraj,))_: Keys to be used for the jump trajectories.
+        exp_ops _(list of array-like)_: Operators to calculate expectation values of,
+            in case some of the cost functions depend on the value of certain
+            expectation values.
+
+    Returns:
+        _(MCSolveModel)_: Model that when called with the parameters we optimize
+            over as argument returns the results of `mcsolve` as well as the updated
+            Hamiltonian
+
+    Examples:
+        To instantiate a MCSolveModel, we need to pass in state kets for the initial
+        states and keys to be used for the jump trajectories. Continuing the `mesolve_model`
+        example:
+        ```python
+        keys = Array = jax.random.split(jax.random.key(31), num=10)
+        mc_Kerr_model = ql.mcsolve_model(
+            update_H_topt, jump_ops, initial_states, update_tsave_topt, keys=keys, exp_ops=exp_ops
+        )
+        ```
+        # TODO add mcsolve tutorial
+    """  # noqa E501
     H_function, psi0, tsave_function, exp_ops = _initialize_model(
         H_function, psi0, tsave_or_function, exp_ops
     )
     jump_ops = [_astimearray(L) for L in jump_ops]
-    return MESolveModel(H_function, psi0, tsave_function, exp_ops, jump_ops)
+    return MCSolveModel(H_function, psi0, tsave_function, exp_ops, jump_ops, keys)
 
 
 def _initialize_model(
@@ -252,6 +305,39 @@ class MESolveModel(Model):
             self.jump_ops,
             self.initial_states,
             new_tsave,
+            exp_ops=self.exp_ops,
+            solver=solver,
+            gradient=gradient,
+            options=options,
+        )
+        return result, new_H
+
+
+class MCSolveModel(Model):
+    r"""Model for Monte-Carlo wave function optimization.
+
+    When called with the parameters we optimize over returns the results of `mcsolve`
+    as well as the updated Hamiltonian.
+    """
+
+    jump_ops: list[TimeArray]
+    keys: Array
+
+    def __call__(
+        self,
+        parameters: Array | dict,
+        solver: Solver = Tsit5(),  # noqa B008
+        gradient: Gradient | None = None,
+        options: OptimizerOptions = OptimizerOptions(),  # noqa B008
+    ) -> tuple[Result, TimeArray]:
+        new_H = self.H_function(parameters)
+        new_tsave = self.tsave_function(parameters)
+        result = dq.mcsolve(
+            new_H,
+            self.jump_ops,
+            self.initial_states,
+            new_tsave,
+            keys=self.keys,
             exp_ops=self.exp_ops,
             solver=solver,
             gradient=gradient,
