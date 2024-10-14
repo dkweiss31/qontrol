@@ -114,6 +114,10 @@ help = "clean the code (ruff + codespell)"
 cmd = 'echo "\n>>> pytest -n=auto tests" && pytest -n=auto tests'
 help = "run the unit tests suite (pytest)"
 
+[tool.taskipy.tasks.doctest]
+cmd = 'echo "\n>>> pytest qontrol" && pytest qontrol'
+help = "check code docstrings examples (doctest)"
+
 [tool.taskipy.tasks.docbuild]
 cmd = 'mkdocs build'
 help = "build the documentation website"
@@ -123,7 +127,7 @@ cmd = 'mkdocs serve'
 help = "preview documentation website with hot-reloading"
 
 [tool.taskipy.tasks.all]
-cmd = 'task clean && task test'
+cmd = 'task clean && task test && task doctest'
 help = "run all tasks before a commit (ruff + codespell + pytest + doctest)"
 
 [tool.taskipy.tasks.ci]
@@ -131,5 +135,6 @@ cmd = '''echo "\n>>> ruff check" && ruff check &&
          echo "\n>>> ruff format --check" && ruff format --check &&
          task codespell &&
          task test &&
+         task doctest &&
          task docbuild'''
 help = "run all the CI checks"
