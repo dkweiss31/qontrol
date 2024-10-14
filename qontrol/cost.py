@@ -4,7 +4,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
-from dynamiqs import TimeArray, isdm, operator_to_vector
+from dynamiqs import isdm, operator_to_vector, TimeArray
 from dynamiqs._utils import cdtype
 from dynamiqs.result import Result
 from dynamiqs.time_array import SummedTimeArray

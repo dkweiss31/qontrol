@@ -8,7 +8,6 @@ from dynamiqs.solver import Tsit5
 from jax import Array
 
 from qontrol import (
-    OptimizerOptions,
     coherent_infidelity,
     control_area,
     control_norm,
@@ -17,6 +16,7 @@ from qontrol import (
     incoherent_infidelity,
     mesolve_model,
     optimize,
+    OptimizerOptions,
     sesolve_model,
 )
 from qontrol.cost import SummedCost

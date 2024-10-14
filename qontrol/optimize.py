@@ -17,7 +17,8 @@ from .cost import Cost, SummedCost
 from .model import Model
 from .options import OptimizerOptions
 from .plot import _plot_controls_and_loss
-from .utils.file_io import save_optimization
+from .utils.file_io import append_to_h5
+
 
 TERMINATION_MESSAGES = {
     -1: 'terminated on keyboard interrupt',
@@ -110,13 +111,15 @@ def optimize(
                 else:
                     print(costs, cost_values[0])
             if filepath is not None:
-                save_optimization(
-                    filepath,
-                    {'cost_values': jnp.asarray(cost_values)},
-                    parameters,
-                    options.__dict__,
-                    epoch,
-                )
+                data_dict = {
+                    'cost_values': jnp.asarray(cost_values),
+                    'total_cost': total_cost,
+                }
+                if type(parameters) is dict:
+                    data_dict = data_dict | parameters
+                else:
+                    data_dict['parameters'] = parameters
+                append_to_h5(filepath, data_dict, options.__dict__)
             if options.plot and epoch % options.plot_period == 0:
                 _plot_controls_and_loss(
                     parameters,

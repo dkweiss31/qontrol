@@ -66,6 +66,8 @@ plugins:
 
 nav:
     - 'index.md'
+    - FAQ:
+        - 'FAQ.md'
     - API:
         - 'grape.md'
     - Examples:
