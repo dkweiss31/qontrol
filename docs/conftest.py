@@ -2,10 +2,10 @@ import diffrax
 import dynamiqs
 import jax
 import jax.numpy as jnp
-import numpy as np
-import pytest
 import matplotlib
+import numpy as np
 import optax
+import pytest
 from sybil import Sybil
 from sybil.parsers.doctest import DocTestParser
 from sybil.parsers.markdown import PythonCodeBlockParser, SkipParser
@@ -29,10 +29,11 @@ def _mpl_params():
     # use a non-interactive backend for matplotlib, to avoid opening a display window
     matplotlib.use('Agg')
 
+
 # sybil configuration
 pytest_collect_file = Sybil(
     parsers=[DocTestParser(), PythonCodeBlockParser(), SkipParser()],
     patterns=['*.md'],
     setup=sybil_setup,
-    fixtures=['_mpl_params']
+    fixtures=['_mpl_params'],
 ).pytest()
