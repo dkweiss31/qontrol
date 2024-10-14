@@ -3,6 +3,8 @@ import dynamiqs
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
+import matplotlib
 import optax
 from sybil import Sybil
 from sybil.parsers.doctest import DocTestParser
@@ -21,9 +23,16 @@ def sybil_setup(namespace):  # noqa ARG001
     namespace['ql'] = qontrol
 
 
+@pytest.fixture(scope='session', autouse=True)
+def _mpl_params():
+    dynamiqs.plot.utils.mplstyle(dpi=150)
+    # use a non-interactive backend for matplotlib, to avoid opening a display window
+    matplotlib.use('Agg')
+
 # sybil configuration
 pytest_collect_file = Sybil(
     parsers=[DocTestParser(), PythonCodeBlockParser(), SkipParser()],
     patterns=['*.md'],
     setup=sybil_setup,
+    fixtures=['_mpl_params']
 ).pytest()
