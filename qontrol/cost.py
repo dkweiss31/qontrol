@@ -129,7 +129,7 @@ def forbidden_states(
     arr_indices = [
         (state_idx, forbid_idx)
         for state_idx in range(num_states)
-        for forbid_idx in range(max_num_forbid)
+        for forbid_idx in range(num_forbid_per_state[state_idx])
     ]
     forbid_array = jnp.zeros((num_states, max_num_forbid, *state_shape), dtype=cdtype())
     for state_idx, forbid_idx in arr_indices:
