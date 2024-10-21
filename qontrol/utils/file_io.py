@@ -5,25 +5,6 @@ import os
 import re
 
 import h5py
-from jaxtyping import ArrayLike
-
-
-def save_optimization(
-    filepath: str,
-    data_dict: dict,
-    params_to_optimize: ArrayLike | dict,
-    init_param_dict: dict,
-    epoch: int = 0,
-) -> None:
-    """Saves the infidelities and optimal parameters obtained at each timestep."""
-    if type(params_to_optimize) is dict:
-        data_dict = data_dict | params_to_optimize
-    else:
-        data_dict['opt_params'] = params_to_optimize
-    if epoch != 0:
-        append_to_h5(filepath, data_dict)
-    else:
-        write_to_h5(filepath, data_dict, init_param_dict)
 
 
 def generate_file_path(extension: str, file_name: str, path: str) -> str:
@@ -55,17 +36,16 @@ def extract_info_from_h5(filepath: str) -> [dict, dict]:
     return data_dict, param_dict
 
 
-def append_to_h5(filepath: str, data_dict: dict) -> None:
+def append_to_h5(filepath: str, data_dict: dict, param_dict: dict) -> None:
     with h5py.File(filepath, 'a') as f:
         for key, val in data_dict.items():
-            f[key].resize(f[key].shape[0] + 1, axis=0)
-            f[key][-1] = val
-
-
-def write_to_h5(filepath: str, data_dict: dict, param_dict: dict) -> None:
-    with h5py.File(filepath, 'a') as f:
-        for key, val in data_dict.items():
-            f.create_dataset(key, data=[val], chunks=True, maxshape=(None, *val.shape))
+            if key not in f:
+                f.create_dataset(
+                    key, data=[val], chunks=True, maxshape=(None, *val.shape)
+                )
+            else:
+                f[key].resize(f[key].shape[0] + 1, axis=0)
+                f[key][-1] = val
         for kwarg in param_dict:
             try:
                 f.attrs[kwarg] = param_dict[kwarg]

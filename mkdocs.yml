@@ -66,8 +66,10 @@ plugins:
 
 nav:
     - 'index.md'
+    - FAQ:
+        - 'FAQ.md'
     - API:
-        - 'grape.md'
+        - 'api.md'
     - Examples:
         - Qubit: 'examples/qubit.ipynb'
         - Kerr Oscillator: 'examples/Kerr_oscillator.ipynb'

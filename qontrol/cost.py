@@ -4,7 +4,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
-from dynamiqs import TimeArray, isdm, operator_to_vector
+from dynamiqs import isdm, operator_to_vector, TimeArray
 from dynamiqs._utils import cdtype
 from dynamiqs.result import Result
 from dynamiqs.time_array import SummedTimeArray
@@ -129,7 +129,7 @@ def forbidden_states(
     arr_indices = [
         (state_idx, forbid_idx)
         for state_idx in range(num_states)
-        for forbid_idx in range(max_num_forbid)
+        for forbid_idx in range(num_forbid_per_state[state_idx])
     ]
     forbid_array = jnp.zeros((num_states, max_num_forbid, *state_shape), dtype=cdtype())
     for state_idx, forbid_idx in arr_indices:
@@ -220,12 +220,7 @@ def custom_control_cost(
 
     Examples:
         ```python
-        import jax
-        from jax import Array
-        import qontrol as ql
-
-
-        def penalize_negative(control_amp: Array) -> Array:
+        def penalize_negative(control_amp: jax.Array) -> jax.Array:
             return jax.nn.relu(-control_amp)
 
 
@@ -247,7 +242,7 @@ def custom_cost(
 
     Args:
         cost_fun _(callable)_: Cost function which must have signature
-            `(result: dq.Result, H: dq.TimeArray) -> Array`.
+            `(result: dq.Result, H: dq.TimeArray, parameters: dict | Array) -> Array`.
         cost_multiplier _(float)_: Weight for this cost function relative to other cost
             functions.
         target_cost _(float)_: Target value for this cost function. If options.all_costs
@@ -263,13 +258,9 @@ def custom_cost(
         time in `tsave`.
 
         ```python
-        from dynamiqs.result import Result
-        from dynamiqs.time_array import TimeArray
-        from jax import Array
-        import qontrol as ql
-
-
-        def penalize_expect(result: Result, H: TimeArray) -> Array:
+        def penalize_expect(
+            result: Result, H: TimeArray, parameters: dict | Array
+        ) -> Array:
             # 0 is the index of the operator, -1 is the time index
             return jnp.sum(jnp.abs(result.expects[0, -1]))
 
@@ -286,7 +277,7 @@ def custom_cost(
 
 
 class Cost(eqx.Module):
-    def __call__(self, result: Result, H: TimeArray) -> Array:
+    def __call__(self, result: Result, H: TimeArray, parameters: dict | Array) -> Array:
         raise NotImplementedError
 
     def __add__(self, other: Cost) -> SummedCost:
@@ -307,8 +298,10 @@ class Cost(eqx.Module):
 class SummedCost(Cost):
     costs: list[Cost]
 
-    def __call__(self, result: Result, H: TimeArray) -> list[Array]:
-        return [cost(result, H)[0] for cost in self.costs]
+    def __call__(
+        self, result: Result, H: TimeArray, parameters: dict | Array
+    ) -> list[Array]:
+        return [cost(result, H, parameters)[0] for cost in self.costs]
 
     def __mul__(self, y: float) -> SummedCost:
         costs = [cost * y for cost in self.costs]
@@ -325,7 +318,12 @@ class IncoherentInfidelity(Cost):
     target_cost: float
     target_states: Array
 
-    def __call__(self, result: Result, H: TimeArray) -> tuple[tuple[Array, Array]]:  # noqa ARG002
+    def __call__(
+        self,
+        result: Result,
+        H: TimeArray,  # noqa ARG002
+        parameters: dict | Array,  # noqa ARG002
+    ) -> tuple[tuple[Array, Array]]:
         final_state = _operator_to_vector(result.final_state)
         overlaps = jnp.einsum(
             'sid,...sid->...s', jnp.conj(self.target_states), final_state
@@ -347,7 +345,12 @@ class CoherentInfidelity(Cost):
     target_cost: float
     target_states: Array
 
-    def __call__(self, result: Result, H: TimeArray) -> tuple[tuple[Array, Array]]:  # noqa ARG002
+    def __call__(
+        self,
+        result: Result,
+        H: TimeArray,  # noqa ARG002
+        parameters: dict | Array,  # noqa ARG002
+    ) -> tuple[tuple[Array, Array]]:
         final_state = _operator_to_vector(result.final_state)
         overlaps = jnp.einsum(
             'sid,...sid->...s', jnp.conj(self.target_states), final_state
@@ -371,7 +374,12 @@ class ForbiddenStates(Cost):
     target_cost: float
     forbidden_states: Array
 
-    def __call__(self, result: Result, H: TimeArray) -> tuple[tuple[Array, Array]]:  # noqa ARG002
+    def __call__(
+        self,
+        result: Result,
+        H: TimeArray,  # noqa ARG002
+        parameters: dict | Array,  # noqa ARG002
+    ) -> tuple[tuple[Array, Array]]:
         # states has dims ...stid, where s is initial_states batching, t has
         # dimension of tsave and id are the state dimensions.
         states = _operator_to_vector(result.states)
@@ -416,7 +424,12 @@ class ControlCost(Cost):
 class ControlCostNorm(ControlCost):
     threshold: float
 
-    def __call__(self, result: Result, H: TimeArray) -> tuple[tuple[Array, Array]]:
+    def __call__(
+        self,
+        result: Result,
+        H: TimeArray,
+        parameters: dict | Array,  # noqa ARG002
+    ) -> tuple[tuple[Array, Array]]:
         cost = jnp.abs(
             self.evaluate_controls(
                 result, H, lambda x: jax.nn.relu(jnp.abs(x) - self.threshold)
@@ -431,7 +444,12 @@ class ControlCostNorm(ControlCost):
 
 
 class ControlCostArea(ControlCost):
-    def __call__(self, result: Result, H: TimeArray) -> tuple[tuple[Array, Array]]:
+    def __call__(
+        self,
+        result: Result,
+        H: TimeArray,
+        parameters: dict | Array,  # noqa ARG002
+    ) -> tuple[tuple[Array, Array]]:
         cost = jnp.abs(self.evaluate_controls(result, H, lambda x: x))
         return ((cost, cost < self.target_cost),)
 
@@ -442,7 +460,12 @@ class ControlCostArea(ControlCost):
 class CustomControlCost(ControlCost):
     cost_fun: callable
 
-    def __call__(self, result: Result, H: TimeArray) -> tuple[tuple[Array, Array]]:
+    def __call__(
+        self,
+        result: Result,
+        H: TimeArray,
+        parameters: dict | Array,  # noqa ARG002
+    ) -> tuple[tuple[Array, Array]]:
         cost = jnp.abs(self.evaluate_controls(result, H, self.cost_fun))
         return ((cost, cost < self.target_cost),)
 
@@ -457,8 +480,10 @@ class CustomCost(Cost):
     target_cost: float
     cost_fun: callable
 
-    def __call__(self, result: Result, H: TimeArray) -> tuple[tuple[Array, Array]]:
-        cost = self.cost_fun(result, H)
+    def __call__(
+        self, result: Result, H: TimeArray, parameters: dict | Array
+    ) -> tuple[tuple[Array, Array]]:
+        cost = self.cost_fun(result, H, parameters)
         return ((cost, cost < self.target_cost),)
 
     def __mul__(self, other: float) -> CustomCost:

@@ -49,11 +49,6 @@ def sesolve_model(
         In this simple example the parameters are the amplitudes of piecewise-constant
         controls
         ```python
-        from jax import Array
-        import jax.np as jnp
-        import dynamiqs as dq
-        import qontrol as ql
-
         tsave = jnp.linspace(0.0, 11.0, 10)
         psi0 = [dq.basis(2, 0)]
         H1s = [dq.sigmax(), dq.sigmay()]
@@ -66,7 +61,7 @@ def sesolve_model(
             return H
 
 
-        sesolve_model = ql.SESolveModel(H_pwc, psi0, tsave)
+        sesolve_model = ql.sesolve_model(H_pwc, psi0, tsave)
         ```
         See for example [this tutorial](../examples/qubit).
 
@@ -74,14 +69,8 @@ def sesolve_model(
         are the control points fed into a spline, and additionally the control
         times themselves are optimized.
         ```python
-        from jax import Array
-        import jax.numpy as jnp
-        import diffrax as dx
-        import dynamiqs as dq
-        import qontrol as ql
-
         init_drive_params_topt = {
-            'dp': -0.001 * jnp.ones((len(H1s), ntimes)),
+            'dp': -0.001 * jnp.ones((len(H1s), len(tsave))),
             't': tsave[-1],
         }
 
@@ -100,13 +89,11 @@ def sesolve_model(
             return dq.timecallable(new_H)
 
 
-        def update_tsave_topt(drive_params_dict: dict) -> Array:
+        def update_tsave_topt(drive_params_dict: dict) -> jax.Array:
             return jnp.linspace(0.0, drive_params_dict['t'], len(tsave))
 
 
-        se_t_opt_Kerr_model = ql.sesolve_model(
-            update_H_topt, psi0, update_tsave_topt, exp_ops=exp_ops
-        )
+        se_t_opt_Kerr_model = ql.sesolve_model(update_H_topt, psi0, update_tsave_topt)
         ```
         See for example [this tutorial](../examples/Kerr_oscillator#time-optimal-control).
 
@@ -154,10 +141,10 @@ def mesolve_model(
         operators, and the initial and target states should be specified as density
         matrices. Continuing the last example from `sesolve_model`
         ```python
-        jump_ops = [0.03 * a]
-        me_initial_states = dq.todm(initial_states)
+        jump_ops = [0.03 * dq.sigmax()]
+        me_initial_states = dq.todm(psi0)
         me_Kerr_model = ql.mesolve_model(
-            update_H_topt, jump_ops, me_initial_states, update_tsave_topt, exp_ops=exp_ops
+            update_H_topt, jump_ops, me_initial_states, update_tsave_topt
         )
         ```
         See [this tutorial](../examples/Kerr_oscillator#master-equation-optimization)
