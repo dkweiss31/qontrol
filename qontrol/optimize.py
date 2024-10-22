@@ -7,6 +7,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
+import optimistix as optx
 from dynamiqs.gradient import Gradient
 from dynamiqs.solver import Solver, Tsit5
 from jax import Array
@@ -38,6 +39,7 @@ def optimize(
     *,
     optimizer: GradientTransformation = optax.adam(0.0001, b1=0.99, b2=0.99),  # noqa: B008
     solver: Solver = Tsit5(),  # noqa: B008
+    root_finder: optx.AbstractRootFinder | None = None,
     gradient: Gradient | None = None,
     options: OptimizerOptions = OptimizerOptions(),  # noqa: B008
     filepath: str | None = None,
@@ -73,18 +75,21 @@ def optimize(
     previous_parameters = parameters
     prev_total_cost = 0.0
 
-    @partial(jax.jit, static_argnames=('_solver', '_gradient', '_options'))
+    @partial(
+        jax.jit, static_argnames=('_solver', '_root_finder', '_gradient', '_options')
+    )
     def step(
         _parameters: ArrayLike | dict,
         _costs: Cost,
         _model: Model,
         _opt_state: OptState,
         _solver: Solver,
+        _root_finder: optx.AbstractRootFinder,
         _gradient: Gradient,
         _options: OptimizerOptions,
     ) -> [Array, TransformInitFn, Array]:
         grads, aux = jax.grad(loss, has_aux=True)(
-            _parameters, _costs, _model, _solver, _gradient, _options
+            _parameters, _costs, _model, _solver, _root_finder, _gradient, _options
         )
         updates, _opt_state = optimizer.update(grads, _opt_state)
         _parameters = optax.apply_updates(_parameters, updates)
@@ -96,7 +101,14 @@ def optimize(
         for epoch in range(options.epochs):
             epoch_start_time = time.time()
             parameters, grads, opt_state, aux = step(
-                parameters, costs, model, opt_state, solver, gradient, options
+                parameters,
+                costs,
+                model,
+                opt_state,
+                solver,
+                root_finder,
+                gradient,
+                options,
             )
             elapsed_time = np.around(time.time() - epoch_start_time, decimals=3)
             total_cost, cost_values, terminate_for_cost, expects = aux
@@ -173,10 +185,11 @@ def loss(
     costs: Cost,
     model: Model,
     solver: Solver,
+    root_finder: optx.AbstractRootFinder,
     gradient: Gradient,
     options: OptimizerOptions,
 ) -> [float, Array]:
-    result, H = model(parameters, solver, gradient, options)
+    result, H = model(parameters, solver, root_finder, gradient, options)
     cost_values, terminate = zip(*costs(result, H, parameters))
     total_cost = jax.tree.reduce(jnp.add, cost_values)
     total_cost = jnp.log(jnp.sum(jnp.asarray(total_cost)))

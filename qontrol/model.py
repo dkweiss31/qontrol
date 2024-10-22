@@ -5,6 +5,7 @@ import equinox as eqx
 import jax.numpy as jnp
 import jax.random
 import jax.tree_util as jtu
+import optimistix as optx
 from dynamiqs import TimeArray
 from dynamiqs._utils import cdtype
 from dynamiqs.gradient import Gradient
@@ -149,7 +150,7 @@ def mesolve_model(
         ```
         See [this tutorial](../examples/Kerr_oscillator#master-equation-optimization)
         for example
-    """  # noqa E501
+    """
     H_function, rho0, tsave_function, exp_ops = _initialize_model(
         H_function, rho0, tsave_or_function, exp_ops
     )
@@ -164,7 +165,7 @@ def mcsolve_model(
     tsave_or_function: ArrayLike | callable,
     *,
     exp_ops: list[ArrayLike] | None = None,
-    keys: Array = jax.random.split(jax.random.key(31), num=10),
+    keys: Array = jax.random.split(jax.random.key(31), num=10),  # noqa B008
 ) -> MCSolveModel:
     r"""Instantiate mcsolve model.
 
@@ -195,9 +196,14 @@ def mcsolve_model(
         states and keys to be used for the jump trajectories. Continuing the `mesolve_model`
         example:
         ```python
-        keys = Array = jax.random.split(jax.random.key(31), num=10)
+        keys = jax.random.split(jax.random.key(31), num=10)
         mc_Kerr_model = ql.mcsolve_model(
-            update_H_topt, jump_ops, initial_states, update_tsave_topt, keys=keys, exp_ops=exp_ops
+            update_H_topt,
+            jump_ops,
+            initial_states,
+            update_tsave_topt,
+            keys=keys,
+            exp_ops=exp_ops,
         )
         ```
         # TODO add mcsolve tutorial
@@ -235,6 +241,7 @@ class Model(eqx.Module):
         self,
         parameters: Array | dict,
         solver: Solver = Tsit5(),  # noqa B008
+        root_finder: optx.AbstractRootFinder = None,
         gradient: Gradient | None = None,
         options: OptimizerOptions = OptimizerOptions(),  # noqa B008
     ) -> tuple[Result, TimeArray]:
@@ -252,6 +259,7 @@ class SESolveModel(Model):
         self,
         parameters: Array | dict,
         solver: Solver = Tsit5(),  # noqa B008
+        root_finder: optx.AbstractRootFinder = None,  # noqa ARG002
         gradient: Gradient | None = None,
         options: OptimizerOptions = OptimizerOptions(),  # noqa B008
     ) -> tuple[Result, TimeArray]:
@@ -282,6 +290,7 @@ class MESolveModel(Model):
         self,
         parameters: Array | dict,
         solver: Solver = Tsit5(),  # noqa B008
+        root_finder: optx.AbstractRootFinder = None,  # noqa ARG002
         gradient: Gradient | None = None,
         options: OptimizerOptions = OptimizerOptions(),  # noqa B008
     ) -> tuple[Result, TimeArray]:
@@ -314,6 +323,7 @@ class MCSolveModel(Model):
         self,
         parameters: Array | dict,
         solver: Solver = Tsit5(),  # noqa B008
+        root_finder: optx.AbstractRootFinder = optx.Newton(1e-5, 1e-5, optx.rms_norm),  # noqa: B008
         gradient: Gradient | None = None,
         options: OptimizerOptions = OptimizerOptions(),  # noqa B008
     ) -> tuple[Result, TimeArray]:
@@ -327,6 +337,7 @@ class MCSolveModel(Model):
             keys=self.keys,
             exp_ops=self.exp_ops,
             solver=solver,
+            root_finder=root_finder,
             gradient=gradient,
             options=options,
         )

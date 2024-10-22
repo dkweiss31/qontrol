@@ -8,8 +8,11 @@ from .cost import (
     custom_cost as custom_cost,
     forbidden_states as forbidden_states,
     incoherent_infidelity as incoherent_infidelity,
+    mc_coherent_infidelity as mc_coherent_infidelity,
+    mc_incoherent_infidelity as mc_incoherent_infidelity,
 )
 from .model import (
+    mcsolve_model as mcsolve_model,
     mesolve_model as mesolve_model,
     MESolveModel as MESolveModel,
     Model as Model,

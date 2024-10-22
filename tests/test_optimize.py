@@ -14,6 +14,8 @@ from qontrol import (
     extract_info_from_h5,
     forbidden_states,
     incoherent_infidelity,
+    mc_incoherent_infidelity,
+    mcsolve_model,
     mesolve_model,
     optimize,
     OptimizerOptions,
@@ -112,6 +114,35 @@ def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
     )
     opt_result, opt_H = model(opt_params, Tsit5(), None, optimizer_options)
     cost_values, terminate = zip(*costs(opt_result, opt_H, opt_params))
+    assert all(terminate)
+
+
+def test_mcsolve_optimize(tmp_path):
+    filepath = _filepath(tmp_path)
+    H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc(())
+    optimizer_options = OptimizerOptions(
+        epochs=4000, progress_meter=None, all_costs=True, plot=False
+    )
+    dim = H_func(init_drive_params).shape[-1]
+    jump_ops = [0.0001 * destroy(dim)]
+    target_states_jump = [basis(dim, 0), basis(dim, 0)]
+    keys = jax.random.split(jax.random.key(31), num=5)
+    model = mcsolve_model(H_func, jump_ops, psi0, tsave, keys=keys)
+    cost = mc_incoherent_infidelity(
+        target_states, target_states_jump, jump_multiplier=0.0001
+    )
+    optimizer = optax.adam(0.0001, b1=0.99, b2=0.99)
+    opt_params = optimize(
+        init_drive_params,
+        cost,
+        model,
+        optimizer=optimizer,
+        root_finder=None,
+        options=optimizer_options,
+        filepath=filepath,
+    )
+    opt_result, opt_H = model(opt_params, Tsit5(), None, None, optimizer_options)
+    cost_values, terminate = zip(*cost(opt_result, opt_H, opt_params))
     assert all(terminate)
 
 

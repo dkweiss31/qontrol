@@ -1,20 +1,20 @@
 from __future__ import annotations
 
+import dynamiqs as dq
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
-from dynamiqs import isdm, operator_to_vector, TimeArray
 from dynamiqs._utils import cdtype
-from dynamiqs.result import Result
+from dynamiqs.result import MCSolveResult, SolveResult
 from dynamiqs.time_array import SummedTimeArray
 from jax import Array, vmap
 from jaxtyping import ArrayLike
 
 
 def _operator_to_vector(states: Array) -> Array:
-    if isdm(states):
-        return operator_to_vector(states)
+    if dq.isdm(states):
+        return dq.operator_to_vector(states)
     return states
 
 
@@ -25,14 +25,14 @@ def incoherent_infidelity(
 
     This infidelity is defined as
     $$
-        F_{\rm incoherent} = \sum_{k}|\langle\psi_{t}^{k}|\psi_{i}^{k}(T)\rangle|^2,
+        C_{\rm incoherent} = 1 - \sum_{k}|\langle\psi_{t}^{k}|\psi_{i}^{k}(T)\rangle|^2,
     $$
     where the states at the end of the pulse are $|\psi_{i}^{k}(T)\rangle$ and the
     target states are $|\psi_{t}^{k}\rangle$.
 
     Args:
         target_states _(array_like of shape (s, n, 1) or (s, n, n))_: target states for
-            the initial states passed to `grape`. If performing master-equation
+            the initial states passed to `optimize`. If performing master-equation
             optimization, the target states should be passed as a list of density matrices.
         cost_multiplier _(float)_: Weight for this cost function relative to other cost
             functions.
@@ -46,8 +46,8 @@ def incoherent_infidelity(
             and whether the infidelity is below the target value.
     """  # noqa: E501
     target_states = jnp.asarray(target_states, dtype=cdtype())
-    if isdm(target_states):
-        target_states = operator_to_vector(target_states)
+    if dq.isdm(target_states):
+        target_states = dq.operator_to_vector(target_states)
     return IncoherentInfidelity(cost_multiplier, target_cost, target_states)
 
 
@@ -60,14 +60,14 @@ def coherent_infidelity(
 
     This infidelity is defined as
     $$
-        F_{\rm coherent} = |\sum_{k}\langle\psi_{t}^{k}|\psi_{i}^{k}(T)\rangle|^2,
+        C_{\rm coherent} = 1 - |\sum_{k}\langle\psi_{t}^{k}|\psi_{i}^{k}(T)\rangle|^2,
     $$
     where the states at the end of the pulse are $|\psi_{i}^{k}(T)\rangle$ and the
     target states are $|\psi_{t}^{k}\rangle$.
 
     Args:
         target_states _(array_like of shape (s, n, 1) or (s, n, n))_: target states for
-            the initial states passed to `grape`. If performing master-equation
+            the initial states passed to `optimize`. If performing master-equation
             optimization, the target states should be passed as a list of density matrices.
         cost_multiplier _(float)_: Weight for this cost function relative to other cost
             functions.
@@ -81,9 +81,107 @@ def coherent_infidelity(
             and whether the infidelity is below the target value.
     """  # noqa: E501
     target_states = jnp.asarray(target_states, dtype=cdtype())
-    if isdm(target_states):
-        target_states = operator_to_vector(target_states)
+    if dq.isdm(target_states):
+        target_states = dq.operator_to_vector(target_states)
     return CoherentInfidelity(cost_multiplier, target_cost, target_states)
+
+
+def mc_coherent_infidelity(
+    target_states_no_jump: list[ArrayLike],
+    target_states_jump: list[ArrayLike],
+    no_jump_multiplier: float = 1.0,
+    jump_multiplier: float = 1.0,
+    cost_multiplier: float = 1.0,
+    target_cost: float = 0.005,
+) -> MCInfidelity:
+    r"""Instantiate the cost function for mc trajectory coherent infidelity.
+
+    This infidelity is defined as
+    $$
+        C_{\rm mc, coherent} = m_{\rm nj}\left(1 - \left\langle\left|\sum_{k}\langle\psi_{\rm t, nj}^{(k)}|\psi_{\rm f, nj}^{(k)} \rangle\right|^2\right\rangle\right)
+        + m_{\rm j}\left(1 - \left\langle\sum_{\ell}\left|\sum_{k}\langle\psi_{\rm t, j}^{(k)}|\psi_{\rm f, j}^{(k)}(\ell) \rangle\right|^2\right\rangle\right),
+    $$
+    where $m_{\rm nj}$ is `no_jump_multiplier`, $m_{\rm j}$ is `jump_multiplier`,
+    $k$ indexes the initial states, $\ell$ indexes the jump trajectories, the
+    final no-jump states are $|\psi_{\rm f, nj}^{(k)} \rangle$, the final jump states
+    are $|\psi_{\rm f, j}^{(k)}(\ell) \rangle$, the target no-jump states are
+    $|\psi_{\rm t, nj}^{(k)} \rangle$, and the target jump states
+    are $|\psi_{\rm t, j}^{(k)} \rangle$. The angle brackets represent averaging
+    over initial states, trajectories as well as any other batch dimensions.
+
+    Args:
+        target_states_no_jump _(array_like of shape (s, n, 1))_: target states for the
+            no-jump trajectories.
+        target_states_jump _(array_like of shape (s, n, 1))_: target states for the
+            jump trajectories.
+        no_jump_multiplier _(float)_: Weight for the no-jump cost
+        jump_multiplier _(float)_: Weight for the jump cost
+        cost_multiplier _(float)_: Weight for this cost function relative to other cost
+            functions.
+        target_cost _(float)_: Target value for this cost function. If options.all_costs
+            is True, the optimization terminates early if all cost functions fall below
+            their target values. If options.all_costs is False, the optimization
+            terminates if only one cost function falls below its target value.
+
+    Returns:
+        _(MCInfidelity)_: Callable object that returns the infidelity and whether it is
+            below the target value.
+    """  # noqa: E501
+    no_jump_cost = coherent_infidelity(
+        target_states_no_jump, cost_multiplier=no_jump_multiplier
+    )
+    jump_cost = coherent_infidelity(target_states_jump, cost_multiplier=jump_multiplier)
+    return MCInfidelity(cost_multiplier, target_cost, no_jump_cost, jump_cost)
+
+
+def mc_incoherent_infidelity(
+    target_states_no_jump: list[ArrayLike],
+    target_states_jump: list[ArrayLike],
+    no_jump_multiplier: float = 1.0,
+    jump_multiplier: float = 1.0,
+    cost_multiplier: float = 1.0,
+    target_cost: float = 0.005,
+) -> MCInfidelity:
+    r"""Instantiate the cost function for mc trajectory coherent infidelity.
+
+    This infidelity is defined as
+    $$
+        C_{\rm mc, coherent} = m_{\rm nj}\left(1 - \left\langle\sum_{k}|\langle\psi_{\rm t, nj}^{(k)}|\psi_{\rm f, nj}^{(k)} \rangle|^2\right\rangle\right)
+        + m_{\rm j}\left(1 - \left\langle\sum_{k,\ell}|\langle\psi_{\rm t, j}^{(k)}|\psi_{\rm f, j}^{(k)}(\ell) \rangle|^2\right\rangle\right),
+    $$
+    where $m_{\rm nj}$ is `no_jump_multiplier`, $m_{\rm j}$ is `jump_multiplier`,
+    $k$ indexes the initial states, $\ell$ indexes the jump trajectories, the
+    final no-jump states are $|\psi_{\rm f, nj}^{(k)} \rangle$, the final jump states
+    are $|\psi_{\rm f, j}^{(k)}(\ell) \rangle$, the target no-jump states are
+    $|\psi_{\rm t, nj}^{(k)} \rangle$, and the target jump states
+    are $|\psi_{\rm t, j}^{(k)} \rangle$. The angle brackets represent averaging
+    over initial states, trajectories as well as any other batch dimensions.
+
+    Args:
+        target_states_no_jump _(array_like of shape (s, n, 1))_: target states for the
+            no-jump trajectories.
+        target_states_jump _(array_like of shape (s, n, 1))_: target states for the
+            jump trajectories.
+        no_jump_multiplier _(float)_: Weight for the no-jump cost
+        jump_multiplier _(float)_: Weight for the jump cost
+        cost_multiplier _(float)_: Weight for this cost function relative to other cost
+            functions.
+        target_cost _(float)_: Target value for this cost function. If options.all_costs
+            is True, the optimization terminates early if all cost functions fall below
+            their target values. If options.all_costs is False, the optimization
+            terminates if only one cost function falls below its target value.
+
+    Returns:
+        _(MCInfidelity)_: Callable object that returns the infidelity and whether it is
+            below the target value.
+    """  # noqa: E501
+    no_jump_cost = incoherent_infidelity(
+        target_states_no_jump, cost_multiplier=no_jump_multiplier
+    )
+    jump_cost = incoherent_infidelity(
+        target_states_jump, cost_multiplier=jump_multiplier
+    )
+    return MCInfidelity(cost_multiplier, target_cost, no_jump_cost, jump_cost)
 
 
 def forbidden_states(
@@ -242,7 +340,7 @@ def custom_cost(
 
     Args:
         cost_fun _(callable)_: Cost function which must have signature
-            `(result: dq.Result, H: dq.TimeArray, parameters: dict | Array) -> Array`.
+            `(result: dq.SolveResult, H: dq.TimeArray, parameters: dict | Array) -> Array`.
         cost_multiplier _(float)_: Weight for this cost function relative to other cost
             functions.
         target_cost _(float)_: Target value for this cost function. If options.all_costs
@@ -259,7 +357,7 @@ def custom_cost(
 
         ```python
         def penalize_expect(
-            result: Result, H: TimeArray, parameters: dict | Array
+            result: SolveResult, H: dq.TimeArray, parameters: dict | Array
         ) -> Array:
             # 0 is the index of the operator, -1 is the time index
             return jnp.sum(jnp.abs(result.expects[0, -1]))
@@ -277,7 +375,9 @@ def custom_cost(
 
 
 class Cost(eqx.Module):
-    def __call__(self, result: Result, H: TimeArray, parameters: dict | Array) -> Array:
+    def __call__(
+        self, result: SolveResult, H: dq.TimeArray, parameters: dict | Array
+    ) -> Array:
         raise NotImplementedError
 
     def __add__(self, other: Cost) -> SummedCost:
@@ -299,7 +399,7 @@ class SummedCost(Cost):
     costs: list[Cost]
 
     def __call__(
-        self, result: Result, H: TimeArray, parameters: dict | Array
+        self, result: SolveResult, H: dq.TimeArray, parameters: dict | Array
     ) -> list[Array]:
         return [cost(result, H, parameters)[0] for cost in self.costs]
 
@@ -320,11 +420,11 @@ class IncoherentInfidelity(Cost):
 
     def __call__(
         self,
-        result: Result,
-        H: TimeArray,  # noqa ARG002
+        result: SolveResult,
+        H: dq.TimeArray,  # noqa ARG002
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
-        final_state = _operator_to_vector(result.final_state)
+        final_state = _operator_to_vector(dq.unit(result.final_state))
         overlaps = jnp.einsum(
             'sid,...sid->...s', jnp.conj(self.target_states), final_state
         )
@@ -347,11 +447,11 @@ class CoherentInfidelity(Cost):
 
     def __call__(
         self,
-        result: Result,
-        H: TimeArray,  # noqa ARG002
+        result: SolveResult,
+        H: dq.TimeArray,  # noqa ARG002
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
-        final_state = _operator_to_vector(result.final_state)
+        final_state = _operator_to_vector(dq.unit(result.final_state))
         overlaps = jnp.einsum(
             'sid,...sid->...s', jnp.conj(self.target_states), final_state
         )
@@ -369,6 +469,32 @@ class CoherentInfidelity(Cost):
         )
 
 
+class MCInfidelity(Cost):
+    cost_multiplier: float
+    target_cost: float
+    no_jump_cost: IncoherentInfidelity | CoherentInfidelity
+    jump_cost: IncoherentInfidelity | CoherentInfidelity
+
+    def __call__(
+        self, result: MCSolveResult, H: dq.TimeArray, parameters: dict | Array
+    ) -> tuple[tuple[Array, Array]]:
+        # want the states to be ordered as ...sid where s is the initial states, i is
+        # the hilbert dim and d has dimension 1. Initially ordered as ...sjtid, where j
+        # is the jump batch dimension and t is the time dimension. When we ask for the
+        # final_state, this eliminates the time dimension thus the states are correctly
+        # ordered
+        jump_states_reordered = result._jump_res.states.swapaxes(-5, -4)  # noqa SLF001
+        jump_res = eqx.tree_at(
+            lambda x: x.states,
+            result._jump_res,  # noqa SLF001
+            jump_states_reordered,
+        )
+        ((cost_no_jump, _),) = self.no_jump_cost(result._no_jump_res, H, parameters)  # noqa SLF001
+        ((cost_jump, _),) = self.jump_cost(jump_res, H, parameters)
+        cost = self.cost_multiplier * (cost_no_jump + cost_jump)
+        return ((cost, cost < self.target_cost),)
+
+
 class ForbiddenStates(Cost):
     cost_multiplier: float
     target_cost: float
@@ -376,8 +502,8 @@ class ForbiddenStates(Cost):
 
     def __call__(
         self,
-        result: Result,
-        H: TimeArray,  # noqa ARG002
+        result: SolveResult,
+        H: dq.TimeArray,  # noqa ARG002
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
         # states has dims ...stid, where s is initial_states batching, t has
@@ -400,8 +526,10 @@ class ControlCost(Cost):
     cost_multiplier: float
     target_cost: float
 
-    def evaluate_controls(self, result: Result, H: TimeArray, func: callable) -> Array:
-        def _evaluate_at_tsave(_H: TimeArray) -> Array:
+    def evaluate_controls(
+        self, result: SolveResult, H: dq.TimeArray, func: callable
+    ) -> Array:
+        def _evaluate_at_tsave(_H: dq.TimeArray) -> Array:
             if hasattr(_H, 'prefactor'):
                 return jnp.sum(func(vmap(_H.prefactor)(result.tsave)))
             return jnp.array(0.0)
@@ -426,8 +554,8 @@ class ControlCostNorm(ControlCost):
 
     def __call__(
         self,
-        result: Result,
-        H: TimeArray,
+        result: SolveResult,
+        H: dq.TimeArray,
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
         cost = jnp.abs(
@@ -446,8 +574,8 @@ class ControlCostNorm(ControlCost):
 class ControlCostArea(ControlCost):
     def __call__(
         self,
-        result: Result,
-        H: TimeArray,
+        result: SolveResult,
+        H: dq.TimeArray,
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
         cost = jnp.abs(self.evaluate_controls(result, H, lambda x: x))
@@ -462,8 +590,8 @@ class CustomControlCost(ControlCost):
 
     def __call__(
         self,
-        result: Result,
-        H: TimeArray,
+        result: SolveResult,
+        H: dq.TimeArray,
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
         cost = jnp.abs(self.evaluate_controls(result, H, self.cost_fun))
@@ -481,7 +609,7 @@ class CustomCost(Cost):
     cost_fun: callable
 
     def __call__(
-        self, result: Result, H: TimeArray, parameters: dict | Array
+        self, result: SolveResult, H: dq.TimeArray, parameters: dict | Array
     ) -> tuple[tuple[Array, Array]]:
         cost = self.cost_fun(result, H, parameters)
         return ((cost, cost < self.target_cost),)
