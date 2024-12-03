@@ -165,6 +165,8 @@ def optimize(
         f'max epoch time of {np.max(epoch_times[1:])} s; \n'
         f'min epoch time of {np.min(epoch_times[1:])} s'
     )
+    if options.verbose and filepath is not None:
+        print(f'results saved to {filepath}')
     return parameters
 
 
