@@ -22,6 +22,7 @@ def sesolve_model(
     tsave_or_function: ArrayLike | callable,
     *,
     exp_ops: list[ArrayLike] | None = None,
+    H_labels: list | None = None,
 ) -> SESolveModel:
     r"""Instantiate sesolve model.
 
@@ -100,7 +101,9 @@ def sesolve_model(
     H_function, psi0, tsave_or_function, exp_ops = _initialize_model(
         H_function, psi0, tsave_or_function, exp_ops
     )
-    return SESolveModel(H_function, psi0, tsave_or_function, exp_ops)
+    return SESolveModel(
+        H_function, psi0, tsave_or_function, exp_ops=exp_ops, H_labels=H_labels
+    )
 
 
 def mesolve_model(
@@ -110,6 +113,7 @@ def mesolve_model(
     tsave_or_function: ArrayLike | callable,
     *,
     exp_ops: list[ArrayLike] | None = None,
+    H_labels: list | None = None,
 ) -> MESolveModel:
     r"""Instantiate mesolve model.
 
@@ -149,12 +153,18 @@ def mesolve_model(
         See [this tutorial](../examples/Kerr_oscillator#master-equation-optimization)
         for example
     """
-    H_function, psi0, tsave_function, exp_ops = _initialize_model(
-        H_function, psi0, tsave_or_function, exp_ops
+    H_function, rho0, tsave_function, exp_ops = _initialize_model(
+        H_function, rho0, tsave_or_function, exp_ops
     )
     jump_ops = [_astimearray(L) for L in jump_ops]
-    return MESolveModel(H_function, psi0, tsave_function, exp_ops, jump_ops)
-
+    return MESolveModel(
+        H_function,
+        rho0,
+        tsave_function,
+        exp_ops=exp_ops,
+        H_labels=H_labels,
+        jump_ops=jump_ops,
+    )
 
 def _initialize_model(
     H_function: callable,
@@ -177,6 +187,7 @@ class Model(eqx.Module):
     initial_states: Array
     tsave_function: callable
     exp_ops: Array | None
+    H_labels: list | None
 
     def __call__(
         self,

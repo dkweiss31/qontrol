@@ -68,7 +68,11 @@ def _plot_controls_and_loss(  # noqa PLR0915
     else:
         controls.append(evaluate_at_tsave(H))
     for idx, control in enumerate(controls):
-        ax.plot(finer_tsave, np.real(control) / 2 / np.pi, label=f'$H_{idx}$')
+        if model.H_labels:
+            H_label = model.H_labels[idx]
+        else:
+            H_label = f'$H_{idx}$'
+        ax.plot(finer_tsave, np.real(control) / 2 / np.pi, label=H_label)
     ax.legend(loc='lower right', framealpha=0.0)
     ax.set_ylabel('pulse amplitude [GHz]')
     ax.set_xlabel('time [ns]')
