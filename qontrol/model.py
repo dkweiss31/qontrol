@@ -109,7 +109,7 @@ def sesolve_model(
 def mesolve_model(
     H_function: callable,
     jump_ops: list[ArrayLike],
-    psi0: ArrayLike,
+    rho0: ArrayLike,
     tsave_or_function: ArrayLike | callable,
     *,
     exp_ops: list[ArrayLike] | None = None,
@@ -125,7 +125,7 @@ def mesolve_model(
         H_function _(callable)_: function specifying how to update the Hamiltonian
         jump_ops _(list of array-like or time-array, each of shape (...Lk, n, n))_:
             List of jump operators.
-        psi0 _(ArrayLike of shape (..., n, 1))_: Initial states.
+        rho0 _(ArrayLike of shape (..., n, n))_: Initial density matrices.
         tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
             array of times passed to sesolve or a method specifying how to update
             the times that are passed to sesolve
