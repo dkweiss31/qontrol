@@ -46,8 +46,8 @@ def append_to_h5(filepath: str, data_dict: dict, param_dict: dict) -> None:
             else:
                 f[key].resize(f[key].shape[0] + 1, axis=0)
                 f[key][-1] = val
-        for kwarg in param_dict:
+        for key, val in param_dict.items():
             try:
-                f.attrs[kwarg] = param_dict[kwarg]
+                f.attrs[key] = val
             except TypeError:
-                f.attrs[kwarg] = str(param_dict[kwarg])
+                f.attrs[key] = str(val)
