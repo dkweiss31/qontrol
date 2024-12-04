@@ -24,6 +24,7 @@ from .utils.file_io import (
     extract_info_from_h5 as extract_info_from_h5,
     generate_file_path as generate_file_path,
 )
+from .plot import _plot_controls_and_loss
 
 
 __version__ = version(__package__)

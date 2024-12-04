@@ -34,6 +34,7 @@ class OptimizerOptions(Options):
     xtol: float
     ftol: float
     gtol: float
+    freq_cutoff: float
 
     def __init__(
         self,
@@ -46,6 +47,7 @@ class OptimizerOptions(Options):
         xtol: float = 1e-8,
         ftol: float = 1e-8,
         gtol: float = 1e-8,
+        freq_cutoff: float = 10.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -58,3 +60,4 @@ class OptimizerOptions(Options):
         self.xtol = xtol
         self.ftol = ftol
         self.gtol = gtol
+        self.freq_cutoff = freq_cutoff
