@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import jax.random
 import optax
 import pytest
-from dynamiqs import basis, dag, destroy, modulated, todm
+from dynamiqs import basis, dag, destroy, modulated, todm, constant
 from dynamiqs.solver import Tsit5
 from jax import Array
 
@@ -52,7 +52,7 @@ def setup_Kerr_osc(nH=None):
 
     def H_func(drive_params_dict: dict) -> Array:
         drive_params = drive_params_dict['dp']
-        H = H0
+        H = constant(H0)
         for H1, drive_param in zip(H1s, drive_params):
             drive_spline = _drive_spline(drive_param)
             H += modulated(drive_spline.evaluate, H1)
@@ -111,6 +111,7 @@ def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
         filepath=filepath,
         optimizer=optimizer,
         options=optimizer_options,
+        H_labels=["H0", "I", "Q"]
     )
     opt_result, opt_H = model(opt_params, Tsit5(), None, None, optimizer_options)
     cost_values, terminate = zip(*costs(opt_result, opt_H, opt_params))

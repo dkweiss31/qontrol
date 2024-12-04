@@ -33,7 +33,6 @@ class OptimizerOptions(Options):
     plot: bool
     plot_period: int
     which_states_plot: tuple
-    H_labels: list
     xtol: float
     ftol: float
     gtol: float
@@ -46,7 +45,6 @@ class OptimizerOptions(Options):
         plot: bool = True,
         plot_period: int = 30,
         which_states_plot: tuple = (0,),
-        H_labels: list | None = None,
         xtol: float = 1e-8,
         ftol: float = 1e-8,
         gtol: float = 1e-8,
@@ -59,7 +57,6 @@ class OptimizerOptions(Options):
         self.plot = plot
         self.plot_period = plot_period
         self.which_states_plot = which_states_plot
-        self.H_labels = H_labels
         self.xtol = xtol
         self.ftol = ftol
         self.gtol = gtol

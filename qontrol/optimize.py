@@ -43,6 +43,7 @@ def optimize(
     gradient: Gradient | None = None,
     options: OptimizerOptions = OptimizerOptions(),  # noqa: B008
     filepath: str | None = None,
+    H_labels: list | None = None,
 ) -> Array | dict:
     r"""Perform gradient descent to optimize Hamiltonian parameters.
 
@@ -141,6 +142,7 @@ def optimize(
                     cost_values_over_epochs,
                     epoch,
                     options,
+                    H_labels,
                 )
             # early termination
             termination_key = _terminate_early(
@@ -168,6 +170,7 @@ def optimize(
             cost_values_over_epochs,
             len(cost_values_over_epochs) - 1,
             options,
+            H_labels,
         )
     print(TERMINATION_MESSAGES[termination_key])
     print(

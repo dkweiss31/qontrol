@@ -20,6 +20,7 @@ def _plot_controls_and_loss(  # noqa PLR0915
     cost_values_over_epochs: list,
     epoch: int,
     options: OptimizerOptions,
+    H_labels: list | None
 ) -> None:
     # prevents overcrowding of plots in jupyter notebooks
     clear_output(wait=True)
@@ -68,7 +69,7 @@ def _plot_controls_and_loss(  # noqa PLR0915
     else:
         controls.append(evaluate_at_tsave(H))
     for idx, control in enumerate(controls):
-        H_label = options.H_labels[idx] if options.H_labels else f'$H_{idx}$'
+        H_label = H_labels[idx] if H_labels else f'$H_{idx}$'
         ax.plot(finer_tsave, np.real(control) / 2 / np.pi, label=H_label)
     ax.legend(loc='lower right', framealpha=0.0)
     ax.set_ylabel('pulse amplitude [GHz]')
