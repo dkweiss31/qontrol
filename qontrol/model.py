@@ -166,6 +166,7 @@ def mesolve_model(
         jump_ops=jump_ops,
     )
 
+
 def _initialize_model(
     H_function: callable,
     psi0: ArrayLike,
