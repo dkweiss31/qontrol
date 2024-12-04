@@ -168,7 +168,6 @@ def mcsolve_model(
     *,
     exp_ops: list[ArrayLike] | None = None,
     keys: Array = jax.random.split(jax.random.key(31), num=10),  # noqa B008
-    H_labels: list | None = None
 ) -> MCSolveModel:
     r"""Instantiate mcsolve model.
 
@@ -220,7 +219,6 @@ def mcsolve_model(
         psi0,
         tsave_function,
         exp_ops=exp_ops,
-        H_labels=H_labels,
         jump_ops=jump_ops,
         keys=keys,
     )
