@@ -248,7 +248,7 @@ class Model(eqx.Module):
         self,
         parameters: Array | dict,
         solver: Solver = Tsit5(),  # noqa B008
-        root_finder: optx.AbstractRootFinder = None,
+        root_finder: optx.AbstractRootFinder | None = None,
         gradient: Gradient | None = None,
         options: dq.Options = dq.Options(),  # noqa B008
     ) -> tuple[Result, TimeArray]:
@@ -266,7 +266,7 @@ class SESolveModel(Model):
         self,
         parameters: Array | dict,
         solver: Solver = Tsit5(),  # noqa B008
-        root_finder: optx.AbstractRootFinder = None,  # noqa ARG002
+        root_finder: optx.AbstractRootFinder | None = None,
         gradient: Gradient | None = None,
         options: dq.Options = dq.Options(),  # noqa B008
     ) -> tuple[Result, TimeArray]:
@@ -297,7 +297,7 @@ class MESolveModel(Model):
         self,
         parameters: Array | dict,
         solver: Solver = Tsit5(),  # noqa B008
-        root_finder: optx.AbstractRootFinder = None,  # noqa ARG002
+        root_finder: optx.AbstractRootFinder | None = None,
         gradient: Gradient | None = None,
         options: dq.Options = dq.Options(),  # noqa B008
     ) -> tuple[Result, TimeArray]:
