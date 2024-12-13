@@ -3,11 +3,11 @@ from __future__ import annotations
 import time
 from functools import partial
 
+import dynamiqs as dq
 import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
-import dynamiqs as dq
 from dynamiqs.gradient import Gradient
 from dynamiqs.solver import Solver, Tsit5
 from jax import Array
@@ -31,16 +31,16 @@ TERMINATION_MESSAGES = {
 }
 
 default_options = {
-    "verbose": True,
-    "all_costs": True,
-    "epochs": 2000,
-    "plot": True,
-    "plot_period": 30,
-    "which_states_plot": (0,),
-    "H_labels": None,
-    "xtol": 1e-8,
-    "ftol": 1e-8,
-    "gtol": 1e-8,
+    'verbose': True,
+    'all_costs': True,
+    'epochs': 2000,
+    'plot': True,
+    'plot_period': 30,
+    'which_states_plot': (0,),
+    'H_labels': None,
+    'xtol': 1e-8,
+    'ftol': 1e-8,
+    'gtol': 1e-8,
 }
 
 
@@ -122,10 +122,10 @@ def optimize(
         _parameters = optax.apply_updates(_parameters, updates)
         return _parameters, grads, _opt_state, aux
 
-    if opt_options["verbose"] and filepath is not None:
+    if opt_options['verbose'] and filepath is not None:
         print(f'saving results to {filepath}')
     try:  # trick for catching keyboard interrupt
-        for epoch in range(opt_options["epochs"]):
+        for epoch in range(opt_options['epochs']):
             epoch_start_time = time.time()
             parameters, grads, opt_state, aux = step(
                 parameters, costs, model, opt_state, solver, gradient, dq_options
@@ -134,7 +134,7 @@ def optimize(
             total_cost, cost_values, terminate_for_cost, expects = aux
             cost_values_over_epochs.append(cost_values)
             epoch_times.append(elapsed_time)
-            if opt_options["verbose"]:
+            if opt_options['verbose']:
                 print(f'epoch: {epoch}, elapsed_time: {elapsed_time} s; ')
                 if isinstance(costs, SummedCost):
                     for _cost, _cost_value in zip(costs.costs, cost_values):
@@ -152,7 +152,7 @@ def optimize(
                 else:
                     data_dict['parameters'] = parameters
                 append_to_h5(filepath, data_dict, opt_options)
-            if opt_options["plot"] and epoch % opt_options["plot_period"] == 0:
+            if opt_options['plot'] and epoch % opt_options['plot_period'] == 0:
                 _plot_controls_and_loss(
                     parameters,
                     costs,
@@ -179,7 +179,7 @@ def optimize(
             prev_total_cost = total_cost
     except KeyboardInterrupt:
         pass
-    if opt_options["plot"]:
+    if opt_options['plot']:
         _plot_controls_and_loss(
             parameters,
             costs,
@@ -197,7 +197,7 @@ def optimize(
         f'max epoch time of {np.max(epoch_times[1:])} s; \n'
         f'min epoch time of {np.min(epoch_times[1:])} s'
     )
-    if opt_options["verbose"] and filepath is not None:
+    if opt_options['verbose'] and filepath is not None:
         print(f'results saved to {filepath}')
     return parameters
 
@@ -228,7 +228,7 @@ def _terminate_early(
     opt_options: dict,
 ) -> None | int:
     termination_key = -1
-    if epoch == opt_options["epochs"] - 1:
+    if epoch == opt_options['epochs'] - 1:
         termination_key = 0
     # gtol and xtol
     dx = 0.0
@@ -243,17 +243,17 @@ def _terminate_early(
     else:
         dx += _norm(parameters - previous_parameters)
         dg += _norm(grads)
-    if dg < opt_options["gtol"]:
+    if dg < opt_options['gtol']:
         termination_key = 1
     # ftol
     dF = np.abs(total_cost - prev_total_cost)
-    if dF < opt_options["ftol"] * total_cost:
+    if dF < opt_options['ftol'] * total_cost:
         termination_key = 2
-    if dx < opt_options["xtol"] * (opt_options["xtol"] + dx):
+    if dx < opt_options['xtol'] * (opt_options['xtol'] + dx):
         termination_key = 3
-    if not opt_options["all_costs"] and any(terminate_for_cost):
+    if not opt_options['all_costs'] and any(terminate_for_cost):
         termination_key = 4
-    if opt_options["all_costs"] and all(terminate_for_cost):
+    if opt_options['all_costs'] and all(terminate_for_cost):
         termination_key = 5
 
     return termination_key

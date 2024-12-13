@@ -66,8 +66,8 @@ def _plot_controls_and_loss(  # noqa PLR0915
             controls.append(evaluate_at_tsave(_H))
     else:
         controls.append(evaluate_at_tsave(H))
-    if options["H_labels"]:
-        H_labels = options["H_labels"]
+    if options['H_labels']:
+        H_labels = options['H_labels']
     else:
         H_labels = [f'$H_{idx}$' for idx in range(len(controls))]
     for idx, control in enumerate(controls):
@@ -95,7 +95,7 @@ def _plot_controls_and_loss(  # noqa PLR0915
         ax.set_facecolor('none')
         expects = np.swapaxes(expects, axis1=-2, axis2=-3)
         expect_idxs = np.ndindex(*expects.shape[:-2])
-        for state_idx in options["which_states_plot"]:
+        for state_idx in options['which_states_plot']:
             for expect_idx in expect_idxs:
                 ax.plot(tsave, np.real(expects[tuple(expect_idx)][state_idx]))
         ax.set_xlabel('time [ns]')

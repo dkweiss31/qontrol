@@ -1,9 +1,9 @@
 import diffrax as dx
+import dynamiqs as dq
 import jax.numpy as jnp
 import jax.random
 import optax
 import pytest
-import dynamiqs as dq
 from dynamiqs.solver import Tsit5
 from jax import Array
 
@@ -65,7 +65,7 @@ def setup_Kerr_osc(nH=None):
 def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
     filepath = _filepath(tmp_path)
     H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc(nH)
-    optimizer_options = {"epochs": 4000, "all_costs": True, "plot": False}
+    optimizer_options = {'epochs': 4000, 'all_costs': True, 'plot': False}
     dq_options = dq.Options(progress_meter=None)
     # only utilized if cost == "forbid"
     dim = H_func(init_drive_params).shape[-1]
@@ -117,7 +117,7 @@ def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
 def test_reinitialize(tmp_path):
     filepath = _filepath(tmp_path)
     H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc()
-    optimizer_options = {"epochs": 4000, "plot": False}
+    optimizer_options = {'epochs': 4000, 'plot': False}
     dq_options = dq.Options(progress_meter=None)
     model = sesolve_model(H_func, psi0, tsave)
     costs = coherent_infidelity(target_states, target_cost=0.01)
@@ -129,7 +129,7 @@ def test_reinitialize(tmp_path):
         filepath=filepath,
         optimizer=optimizer,
         opt_options=optimizer_options,
-        dq_options=dq_options
+        dq_options=dq_options,
     )
     data_dict, _ = extract_info_from_h5(filepath)
     opt_result, opt_H = model(opt_params, Tsit5(), None, dq_options)
