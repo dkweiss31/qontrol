@@ -7,6 +7,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
+import dynamiqs as dq
 from dynamiqs.gradient import Gradient
 from dynamiqs.solver import Solver, Tsit5
 from jax import Array
@@ -15,7 +16,6 @@ from optax import GradientTransformation, OptState, TransformInitFn
 
 from .cost import Cost, SummedCost
 from .model import Model
-from .options import OptimizerOptions
 from .plot import _plot_controls_and_loss
 from .utils.file_io import append_to_h5
 
@@ -30,6 +30,19 @@ TERMINATION_MESSAGES = {
     5: 'target cost reached for all cost functions;',
 }
 
+default_options = {
+    "verbose": True,
+    "all_costs": True,
+    "epochs": 2000,
+    "plot": True,
+    "plot_period": 30,
+    "which_states_plot": (0,),
+    "H_labels": None,
+    "xtol": 1e-8,
+    "ftol": 1e-8,
+    "gtol": 1e-8,
+}
+
 
 def optimize(
     parameters: ArrayLike | dict,
@@ -39,7 +52,8 @@ def optimize(
     optimizer: GradientTransformation = optax.adam(0.0001, b1=0.99, b2=0.99),  # noqa: B008
     solver: Solver = Tsit5(),  # noqa: B008
     gradient: Gradient | None = None,
-    options: OptimizerOptions = OptimizerOptions(),  # noqa: B008
+    dq_options: dq.Options = dq.Options(),  # noqa: B008
+    opt_options: dict | None = None,
     filepath: str | None = None,
 ) -> Array | dict:
     r"""Perform gradient descent to optimize Hamiltonian parameters.
@@ -59,14 +73,32 @@ def optimize(
             for gradient descent. Defaults to the Adam optimizer.
         solver _(Solver)_: Solver passed to dynamiqs.
         gradient _()Gradient_: Gradient passed to dynamiqs.
-        options _(OptimizerOptions)_: Options for grape optimization and dynamiqs
-            integration.
+        options _(dict)_: Options for grape optimization.
+            verbose _(bool)_: If `True`, the optimizer will print out the infidelity at
+                each epoch step to track the progress of the optimization.
+            all_costs _(bool)_: Whether or not all costs must be below their targets for
+                early termination of the optimizer. If False, the optimization terminates
+                if only one cost function is below the target (typically infidelity).
+            epochs _(int)_: Number of optimization epochs.
+            plot _(bool)_: Whether to plot the results during the optimization (for the
+                epochs where results are plotted, necessarily suffer a time penalty).
+            plot_period _(int)_: If plot is True, plot every plot_period.
+            which_states_plot _(tuple)_: Which states to plot if expectation values are
+                passed to the model. Defaults to (0, ), so just plot expectation values for
+                the zero indexed batch state
+            xtol _(float)_: Defaults to 1e-8, terminate the optimization if the parameters
+                are not being updated
+            ftol _(float)_: Defaults to 1e-8, terminate the optimization if the cost
+                function is not changing above this level
+            gtol _(float)_: Defaults to 1e-8, terminate the optimization if the norm of the
+                gradient falls below this level
         filepath _(str)_: Filepath of where to save optimization results.
 
     Returns:
         optimized parameters from the final timestep
     """  # noqa E501
     # initialize
+    opt_options = {**default_options, **(opt_options or {})}
     opt_state = optimizer.init(parameters)
     cost_values_over_epochs = []
     epoch_times = []
@@ -81,7 +113,7 @@ def optimize(
         _opt_state: OptState,
         _solver: Solver,
         _gradient: Gradient,
-        _options: OptimizerOptions,
+        _options: dq.Options,
     ) -> [Array, TransformInitFn, Array]:
         grads, aux = jax.grad(loss, has_aux=True)(
             _parameters, _costs, _model, _solver, _gradient, _options
@@ -90,19 +122,19 @@ def optimize(
         _parameters = optax.apply_updates(_parameters, updates)
         return _parameters, grads, _opt_state, aux
 
-    if options.verbose and filepath is not None:
+    if opt_options["verbose"] and filepath is not None:
         print(f'saving results to {filepath}')
     try:  # trick for catching keyboard interrupt
-        for epoch in range(options.epochs):
+        for epoch in range(opt_options["epochs"]):
             epoch_start_time = time.time()
             parameters, grads, opt_state, aux = step(
-                parameters, costs, model, opt_state, solver, gradient, options
+                parameters, costs, model, opt_state, solver, gradient, dq_options
             )
             elapsed_time = np.around(time.time() - epoch_start_time, decimals=3)
             total_cost, cost_values, terminate_for_cost, expects = aux
             cost_values_over_epochs.append(cost_values)
             epoch_times.append(elapsed_time)
-            if options.verbose:
+            if opt_options["verbose"]:
                 print(f'epoch: {epoch}, elapsed_time: {elapsed_time} s; ')
                 if isinstance(costs, SummedCost):
                     for _cost, _cost_value in zip(costs.costs, cost_values):
@@ -119,8 +151,8 @@ def optimize(
                     data_dict = data_dict | parameters
                 else:
                     data_dict['parameters'] = parameters
-                append_to_h5(filepath, data_dict, options.__dict__)
-            if options.plot and epoch % options.plot_period == 0:
+                append_to_h5(filepath, data_dict, opt_options)
+            if opt_options["plot"] and epoch % opt_options["plot_period"] == 0:
                 _plot_controls_and_loss(
                     parameters,
                     costs,
@@ -128,7 +160,7 @@ def optimize(
                     expects,
                     cost_values_over_epochs,
                     epoch,
-                    options,
+                    opt_options,
                 )
             # early termination
             termination_key = _terminate_early(
@@ -139,7 +171,7 @@ def optimize(
                 prev_total_cost,
                 terminate_for_cost,
                 epoch,
-                options,
+                opt_options,
             )
             if termination_key != -1:
                 break
@@ -147,7 +179,7 @@ def optimize(
             prev_total_cost = total_cost
     except KeyboardInterrupt:
         pass
-    if options.plot:
+    if opt_options["plot"]:
         _plot_controls_and_loss(
             parameters,
             costs,
@@ -155,7 +187,7 @@ def optimize(
             expects,
             cost_values_over_epochs,
             len(cost_values_over_epochs) - 1,
-            options,
+            opt_options,
         )
     print(TERMINATION_MESSAGES[termination_key])
     print(
@@ -165,7 +197,7 @@ def optimize(
         f'max epoch time of {np.max(epoch_times[1:])} s; \n'
         f'min epoch time of {np.min(epoch_times[1:])} s'
     )
-    if options.verbose and filepath is not None:
+    if opt_options["verbose"] and filepath is not None:
         print(f'results saved to {filepath}')
     return parameters
 
@@ -176,9 +208,9 @@ def loss(
     model: Model,
     solver: Solver,
     gradient: Gradient,
-    options: OptimizerOptions,
+    dq_options: dq.Options,
 ) -> [float, Array]:
-    result, H = model(parameters, solver, gradient, options)
+    result, H = model(parameters, solver, gradient, dq_options)
     cost_values, terminate = zip(*costs(result, H, parameters))
     total_cost = jax.tree.reduce(jnp.add, cost_values)
     total_cost = jnp.log(jnp.sum(jnp.asarray(total_cost)))
@@ -193,10 +225,10 @@ def _terminate_early(
     prev_total_cost: Array,
     terminate_for_cost: list[bool],
     epoch: int,
-    options: OptimizerOptions,
+    opt_options: dict,
 ) -> None | int:
     termination_key = -1
-    if epoch == options.epochs - 1:
+    if epoch == opt_options["epochs"] - 1:
         termination_key = 0
     # gtol and xtol
     dx = 0.0
@@ -211,17 +243,17 @@ def _terminate_early(
     else:
         dx += _norm(parameters - previous_parameters)
         dg += _norm(grads)
-    if dg < options.gtol:
+    if dg < opt_options["gtol"]:
         termination_key = 1
     # ftol
     dF = np.abs(total_cost - prev_total_cost)
-    if dF < options.ftol * total_cost:
+    if dF < opt_options["ftol"] * total_cost:
         termination_key = 2
-    if dx < options.xtol * (options.xtol + dx):
+    if dx < opt_options["xtol"] * (opt_options["xtol"] + dx):
         termination_key = 3
-    if not options.all_costs and any(terminate_for_cost):
+    if not opt_options["all_costs"] and any(terminate_for_cost):
         termination_key = 4
-    if options.all_costs and all(terminate_for_cost):
+    if opt_options["all_costs"] and all(terminate_for_cost):
         termination_key = 5
 
     return termination_key

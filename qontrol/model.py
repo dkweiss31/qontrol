@@ -13,8 +13,6 @@ from dynamiqs.solver import Solver, Tsit5
 from jax import Array
 from jaxtyping import ArrayLike
 
-from .options import OptimizerOptions
-
 
 def sesolve_model(
     H_function: callable,
@@ -185,7 +183,7 @@ class Model(eqx.Module):
         parameters: Array | dict,
         solver: Solver = Tsit5(),  # noqa B008
         gradient: Gradient | None = None,
-        options: OptimizerOptions = OptimizerOptions(),  # noqa B008
+        options: dq.Options = dq.Options(),  # noqa B008
     ) -> tuple[Result, TimeArray]:
         raise NotImplementedError
 
@@ -202,7 +200,7 @@ class SESolveModel(Model):
         parameters: Array | dict,
         solver: Solver = Tsit5(),  # noqa B008
         gradient: Gradient | None = None,
-        options: OptimizerOptions = OptimizerOptions(),  # noqa B008
+        options: dq.Options = dq.Options(),  # noqa B008
     ) -> tuple[Result, TimeArray]:
         new_H = self.H_function(parameters)
         new_tsave = self.tsave_function(parameters)
@@ -232,7 +230,7 @@ class MESolveModel(Model):
         parameters: Array | dict,
         solver: Solver = Tsit5(),  # noqa B008
         gradient: Gradient | None = None,
-        options: OptimizerOptions = OptimizerOptions(),  # noqa B008
+        options: dq.Options = dq.Options(),  # noqa B008
     ) -> tuple[Result, TimeArray]:
         new_H = self.H_function(parameters)
         new_tsave = self.tsave_function(parameters)
