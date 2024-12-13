@@ -136,10 +136,11 @@ def test_mcsolve_optimize(tmp_path):
         model,
         optimizer=optimizer,
         root_finder=None,
-        options=optimizer_options,
+        opt_options=optimizer_options,
+        dq_options=dq_options,
         filepath=filepath,
     )
-    opt_result, opt_H = model(opt_params, Tsit5(), None, None, optimizer_options)
+    opt_result, opt_H = model(opt_params, Tsit5(), None, None, dq_options)
     cost_values, terminate = zip(*cost(opt_result, opt_H, opt_params))
     assert all(terminate)
 
