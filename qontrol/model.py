@@ -268,7 +268,7 @@ class SESolveModel(Model):
         solver: Solver = Tsit5(),  # noqa B008
         root_finder: optx.AbstractRootFinder = None,  # noqa ARG002
         gradient: Gradient | None = None,
-        options: OptimizerOptions = OptimizerOptions(),  # noqa B008
+        options: dq.Options = dq.Options(),  # noqa B008
     ) -> tuple[Result, TimeArray]:
         new_H = self.H_function(parameters)
         new_tsave = self.tsave_function(parameters)
