@@ -22,12 +22,6 @@ and classes that help to define an optimization routine (cost functions, file in
     options:
         show_source: false
 
-## Options
-
-::: qontrol.options
-    options:
-        show_source: false
-
 ## File utilities
 
 ::: qontrol.utils.file_io
