@@ -1,6 +1,6 @@
 [project]
 name = "qontrol"
-version = "0.1.0"
+version = "0.1.1"
 requires-python = ">=3.9"
 description = "Optimal control wrapper of dynamiqs."
 dependencies = [
@@ -64,7 +64,7 @@ select = [
 ]
 extend-select = ["D204", "D400", "D404", "D406", "D410"]
 ignore = [
-    "ANN101", "ANN003",
+    "ANN003",
     "C901",
     "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107", "D417",
     "E741",

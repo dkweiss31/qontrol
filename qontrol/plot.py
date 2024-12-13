@@ -9,7 +9,6 @@ from jax import Array
 
 from .cost import Cost, SummedCost
 from .model import Model
-from .options import OptimizerOptions
 
 
 def _plot_controls_and_loss(  # noqa PLR0915
@@ -19,8 +18,7 @@ def _plot_controls_and_loss(  # noqa PLR0915
     expects: Array | None,
     cost_values_over_epochs: list,
     epoch: int,
-    options: OptimizerOptions,
-    H_labels: list | None
+    options: dict,
 ) -> None:
     # prevents overcrowding of plots in jupyter notebooks
     clear_output(wait=True)
@@ -68,9 +66,12 @@ def _plot_controls_and_loss(  # noqa PLR0915
             controls.append(evaluate_at_tsave(_H))
     else:
         controls.append(evaluate_at_tsave(H))
+    if options['H_labels']:
+        H_labels = options['H_labels']
+    else:
+        H_labels = [f'$H_{idx}$' for idx in range(len(controls))]
     for idx, control in enumerate(controls):
-        H_label = H_labels[idx] if H_labels else f'$H_{idx}$'
-        ax.plot(finer_tsave, np.real(control) / 2 / np.pi, label=H_label)
+        ax.plot(finer_tsave, np.real(control) / 2 / np.pi, label=H_labels[idx])
     ax.legend(loc='lower right', framealpha=0.0)
     ax.set_ylabel('pulse amplitude [GHz]')
     ax.set_xlabel('time [ns]')
@@ -94,10 +95,10 @@ def _plot_controls_and_loss(  # noqa PLR0915
         ax.set_facecolor('none')
         expects = np.swapaxes(expects, axis1=-2, axis2=-3)
         expect_idxs = np.ndindex(*expects.shape[:-2])
-        for state_idx in options.which_states_plot:
+        for state_idx in options['which_states_plot']:
             for expect_idx in expect_idxs:
                 ax.plot(tsave, np.real(expects[tuple(expect_idx)][state_idx]))
         ax.set_xlabel('time [ns]')
-        ax.set_ylabel(f'expectation values for states {options.which_states_plot}')
+        ax.set_ylabel(f'expectation values for states {options["which_states_plot"]}')
     plt.tight_layout()
     plt.show()

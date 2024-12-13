@@ -54,12 +54,18 @@ parameters = seed_amplitude * jnp.ones((len(H1s), ntimes - 1))
 target_states = [-1j * dq.basis(n, 1), 1j * dq.basis(n, 0)]
 cost = ql.cost.coherent_infidelity(target_states=target_states, target_cost=0.001)
 optimizer = optax.adam(learning_rate=0.0001)
-options = ql.OptimizerOptions(
-    save_states=False, progress_meter=None, verbose=False, plot=True, plot_period=5
-)
+opt_options = {"verbose": False, "plot": True, "plot_period": 5}
+dq_options = dq.Options(save_states=False, progress_meter=None)
 
 # run optimization
-opt_params = ql.optimize(parameters, cost, model, optimizer=optimizer, options=options)
+opt_params = ql.optimize(
+    parameters,
+    cost,
+    model,
+    optimizer=optimizer,
+    opt_options=opt_options,
+    dq_options=dq_options,
+)
 ```
 You should see the following oputput, tracking the cost function values, pulse, pulse fft and expectation 
 values over the course of the optimization 

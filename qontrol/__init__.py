@@ -20,7 +20,6 @@ from .model import (
     SESolveModel as SESolveModel,
 )
 from .optimize import optimize as optimize
-from .options import OptimizerOptions as OptimizerOptions
 from .utils.fidelity_utils import all_cardinal_states as all_cardinal_states
 from .utils.file_io import (
     append_to_h5 as append_to_h5,
