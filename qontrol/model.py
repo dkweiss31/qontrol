@@ -2,12 +2,9 @@ from __future__ import annotations
 
 import dynamiqs as dq
 import equinox as eqx
-import jax.numpy as jnp
 import jax.tree_util as jtu
-from dynamiqs import TimeArray
-from dynamiqs._utils import cdtype
+from dynamiqs import QArray, QArrayLike, TimeQArray
 from dynamiqs.gradient import Gradient
-from dynamiqs.integrators._utils import _astimearray
 from dynamiqs.result import Result
 from dynamiqs.solver import Solver, Tsit5
 from jax import Array
@@ -16,7 +13,7 @@ from jaxtyping import ArrayLike
 
 def sesolve_model(
     H_function: callable,
-    psi0: ArrayLike,
+    psi0: QArrayLike,
     tsave_or_function: ArrayLike | callable,
     *,
     exp_ops: list[ArrayLike] | None = None,
@@ -29,7 +26,7 @@ def sesolve_model(
 
     Args:
         H_function _(callable)_: function specifying how to update the Hamiltonian
-        psi0 _(ArrayLike of shape (..., n, 1))_: Initial states.
+        psi0 _(QArrayLike of shape (..., n, 1))_: Initial states.
         tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
             array of times passed to sesolve or a method specifying how to update
             the times that are passed to sesolve
@@ -95,16 +92,16 @@ def sesolve_model(
         See for example [this tutorial](../examples/Kerr_oscillator#time-optimal-control).
 
     """  # noqa E501
-    H_function, psi0, tsave_or_function, exp_ops = _initialize_model(
-        H_function, psi0, tsave_or_function, exp_ops
+    H_function, tsave_or_function = _initialize_model(
+        H_function, tsave_or_function
     )
     return SESolveModel(H_function, psi0, tsave_or_function, exp_ops=exp_ops)
 
 
 def mesolve_model(
     H_function: callable,
-    jump_ops: list[ArrayLike],
-    rho0: ArrayLike,
+    jump_ops: list[QArrayLike | TimeQArray],
+    rho0: QArrayLike,
     tsave_or_function: ArrayLike | callable,
     *,
     exp_ops: list[ArrayLike] | None = None,
@@ -117,9 +114,9 @@ def mesolve_model(
 
     Args:
         H_function _(callable)_: function specifying how to update the Hamiltonian
-        jump_ops _(list of array-like or time-array, each of shape (...Lk, n, n))_:
+        jump_ops _(list of qarray-like or time-qarray, each of shape (...Lk, n, n))_:
             List of jump operators.
-        rho0 _(ArrayLike of shape (..., n, n))_: Initial density matrices.
+        rho0 _(QArrayLike of shape (..., n, n))_: Initial density matrices.
         tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
             array of times passed to sesolve or a method specifying how to update
             the times that are passed to sesolve
@@ -147,10 +144,9 @@ def mesolve_model(
         See [this tutorial](../examples/Kerr_oscillator#master-equation-optimization)
         for example
     """
-    H_function, rho0, tsave_function, exp_ops = _initialize_model(
-        H_function, rho0, tsave_or_function, exp_ops
+    H_function, tsave_function = _initialize_model(
+        H_function, tsave_or_function
     )
-    jump_ops = [_astimearray(L) for L in jump_ops]
     return MESolveModel(
         H_function, rho0, tsave_function, exp_ops=exp_ops, jump_ops=jump_ops
     )
@@ -158,23 +154,19 @@ def mesolve_model(
 
 def _initialize_model(
     H_function: callable,
-    psi0: ArrayLike,
     tsave_or_function: ArrayLike | callable,
-    exp_ops: list[ArrayLike] | None,
-) -> [callable, Array, callable, Array]:
+) -> [callable, callable]:
     H_function = jtu.Partial(H_function)
-    psi0 = jnp.asarray(psi0, dtype=cdtype())
     if callable(tsave_or_function):
         tsave_function = jtu.Partial(tsave_or_function)
     else:
         tsave_function = jtu.Partial(lambda _: tsave_or_function)
-    exp_ops = jnp.asarray(exp_ops, dtype=cdtype()) if exp_ops is not None else None
-    return H_function, psi0, tsave_function, exp_ops
+    return H_function, tsave_function
 
 
 class Model(eqx.Module):
     H_function: callable
-    initial_states: Array
+    initial_states: QArrayLike
     tsave_function: callable
     exp_ops: Array | None
 
@@ -184,7 +176,7 @@ class Model(eqx.Module):
         solver: Solver = Tsit5(),  # noqa B008
         gradient: Gradient | None = None,
         options: dq.Options = dq.Options(),  # noqa B008
-    ) -> tuple[Result, TimeArray]:
+    ) -> tuple[Result, TimeQArray]:
         raise NotImplementedError
 
 
@@ -201,7 +193,7 @@ class SESolveModel(Model):
         solver: Solver = Tsit5(),  # noqa B008
         gradient: Gradient | None = None,
         options: dq.Options = dq.Options(),  # noqa B008
-    ) -> tuple[Result, TimeArray]:
+    ) -> tuple[Result, TimeQArray]:
         new_H = self.H_function(parameters)
         new_tsave = self.tsave_function(parameters)
         result = dq.sesolve(
@@ -223,7 +215,7 @@ class MESolveModel(Model):
     as well as the updated Hamiltonian.
     """
 
-    jump_ops: list[TimeArray]
+    jump_ops: list[QArrayLike | TimeQArray]
 
     def __call__(
         self,
@@ -231,7 +223,7 @@ class MESolveModel(Model):
         solver: Solver = Tsit5(),  # noqa B008
         gradient: Gradient | None = None,
         options: dq.Options = dq.Options(),  # noqa B008
-    ) -> tuple[Result, TimeArray]:
+    ) -> tuple[Result, TimeQArray]:
         new_H = self.H_function(parameters)
         new_tsave = self.tsave_function(parameters)
         result = dq.mesolve(

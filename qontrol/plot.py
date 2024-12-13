@@ -3,7 +3,7 @@ from __future__ import annotations
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
-from dynamiqs.time_array import SummedTimeArray, TimeArray
+from dynamiqs.time_qarray import SummedTimeQArray, TimeQArray
 from IPython.display import clear_output
 from jax import Array
 
@@ -55,14 +55,14 @@ def _plot_controls_and_loss(  # noqa PLR0915
     # pulse if fitting a spline, etc.
     finer_tsave = np.linspace(0.0, tsave[-1], len(tsave) * 10)
 
-    def evaluate_at_tsave(_H: TimeArray) -> np.ndarray:
+    def evaluate_at_tsave(_H: TimeQArray) -> np.ndarray:
         if hasattr(_H, 'prefactor'):
             return jax.vmap(_H.prefactor)(finer_tsave)
         return np.zeros_like(finer_tsave)
 
     controls = []
-    if isinstance(H, SummedTimeArray):
-        for _H in H.timearrays:
+    if isinstance(H, SummedTimeQArray):
+        for _H in H.timeqarrays:
             controls.append(evaluate_at_tsave(_H))
     else:
         controls.append(evaluate_at_tsave(H))

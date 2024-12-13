@@ -35,7 +35,7 @@ def setup_Kerr_osc(nH=None):
     dim = 4
     a = dq.destroy(dim)
     H0 = -0.5 * 0.2 * dq.dag(a) @ dq.dag(a) @ a @ a
-    H0 += jnp.einsum('...,ij->...ij', freq_shifts, dq.dag(a) @ a)
+    H0 += freq_shifts[..., None, None] * dq.dag(a) @ a
     H1s = [a + dq.dag(a), 1j * (a - dq.dag(a))]
     psi0 = [dq.basis(dim, 0), dq.basis(dim, 1)]
     target_states = [-1j * dq.basis(dim, 1), 1j * dq.basis(dim, 0)]
@@ -92,7 +92,7 @@ def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
         assert type(costs) is SummedCost
     elif cost == 'forbid':
         forbidden_states_list = len(psi0) * [_forbidden_states]
-        costs += forbidden_states(
+        costs += 0.01 * forbidden_states(
             forbidden_states_list=forbidden_states_list, target_cost=0.1
         )
         assert type(costs) is SummedCost
