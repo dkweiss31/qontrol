@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import jax.random
 import optax
 import pytest
-from dynamiqs import basis, dag, destroy, modulated, todm
+import dynamiqs as dq
 from dynamiqs.solver import Tsit5
 from jax import Array
 
@@ -16,7 +16,6 @@ from qontrol import (
     incoherent_infidelity,
     mesolve_model,
     optimize,
-    OptimizerOptions,
     sesolve_model,
 )
 from qontrol.cost import SummedCost
@@ -34,12 +33,12 @@ def setup_Kerr_osc(nH=None):
     key = jax.random.PRNGKey(31)
     freq_shifts = 2.0 * jnp.pi * jax.random.normal(key, nH) / 1000
     dim = 4
-    a = destroy(dim)
-    H0 = -0.5 * 0.2 * dag(a) @ dag(a) @ a @ a
-    H0 += jnp.einsum('...,ij->...ij', freq_shifts, dag(a) @ a)
-    H1s = [a + dag(a), 1j * (a - dag(a))]
-    psi0 = [basis(dim, 0), basis(dim, 1)]
-    target_states = [-1j * basis(dim, 1), 1j * basis(dim, 0)]
+    a = dq.destroy(dim)
+    H0 = -0.5 * 0.2 * dq.dag(a) @ dq.dag(a) @ a @ a
+    H0 += jnp.einsum('...,ij->...ij', freq_shifts, dq.dag(a) @ a)
+    H1s = [a + dq.dag(a), 1j * (a - dq.dag(a))]
+    psi0 = [dq.basis(dim, 0), dq.basis(dim, 1)]
+    target_states = [-1j * dq.basis(dim, 1), 1j * dq.basis(dim, 0)]
     tsave = jnp.linspace(0, 40.0, int(40.0 // 2.0) + 1)
 
     init_drive_params = {'dp': -0.001 * jnp.ones((len(H1s), len(tsave)))}
@@ -53,7 +52,7 @@ def setup_Kerr_osc(nH=None):
         H = H0
         for H1, drive_param in zip(H1s, drive_params):
             drive_spline = _drive_spline(drive_param)
-            H += modulated(drive_spline.evaluate, H1)
+            H += dq.modulated(drive_spline.evaluate, H1)
         return H
 
     return H_func, tsave, psi0, init_drive_params, target_states
@@ -66,17 +65,16 @@ def setup_Kerr_osc(nH=None):
 def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
     filepath = _filepath(tmp_path)
     H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc(nH)
-    optimizer_options = OptimizerOptions(
-        epochs=4000, progress_meter=None, all_costs=True, plot=False
-    )
+    optimizer_options = {"epochs": 4000, "all_costs": True, "plot": False}
+    dq_options = dq.Options(progress_meter=None)
     # only utilized if cost == "forbid"
     dim = H_func(init_drive_params).shape[-1]
-    _forbidden_states = [basis(dim, idx) for idx in range(2, dim)]
+    _forbidden_states = [dq.basis(dim, idx) for idx in range(2, dim)]
     if grape_type == 'mesolve':
-        jump_ops = [0.0001 * destroy(dim)]
-        psi0 = todm(psi0)
-        target_states = todm(target_states)
-        _forbidden_states = todm(_forbidden_states)
+        jump_ops = [0.0001 * dq.destroy(dim)]
+        psi0 = dq.todm(psi0)
+        target_states = dq.todm(target_states)
+        _forbidden_states = dq.todm(_forbidden_states)
         model = mesolve_model(H_func, jump_ops, psi0, tsave)
     else:
         model = sesolve_model(H_func, psi0, tsave)
@@ -108,9 +106,10 @@ def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
         model,
         filepath=filepath,
         optimizer=optimizer,
-        options=optimizer_options,
+        opt_options=optimizer_options,
+        dq_options=dq_options,
     )
-    opt_result, opt_H = model(opt_params, Tsit5(), None, optimizer_options)
+    opt_result, opt_H = model(opt_params, Tsit5(), None, dq_options)
     cost_values, terminate = zip(*costs(opt_result, opt_H, opt_params))
     assert all(terminate)
 
@@ -118,8 +117,9 @@ def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
 def test_reinitialize(tmp_path):
     filepath = _filepath(tmp_path)
     H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc()
+    optimizer_options = {"epochs": 4000, "plot": False}
+    dq_options = dq.Options(progress_meter=None)
     model = sesolve_model(H_func, psi0, tsave)
-    optimizer_options = OptimizerOptions(epochs=4000, progress_meter=None, plot=False)
     costs = coherent_infidelity(target_states, target_cost=0.01)
     optimizer = optax.adam(0.0001, b1=0.99, b2=0.99)
     opt_params = optimize(
@@ -128,9 +128,10 @@ def test_reinitialize(tmp_path):
         model,
         filepath=filepath,
         optimizer=optimizer,
-        options=optimizer_options,
+        opt_options=optimizer_options,
+        dq_options=dq_options
     )
     data_dict, _ = extract_info_from_h5(filepath)
-    opt_result, opt_H = model(opt_params, Tsit5(), None, optimizer_options)
+    opt_result, opt_H = model(opt_params, Tsit5(), None, dq_options)
     cost_values, terminate = zip(*costs(opt_result, opt_H, opt_params))
     assert all(terminate)
