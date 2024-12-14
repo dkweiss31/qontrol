@@ -122,7 +122,7 @@ def test_mcsolve_optimize(tmp_path):
     optimizer_options = {'epochs': 4000, 'all_costs': True, 'plot': False}
     dq_options = dq.Options(progress_meter=None)
     dim = H_func(init_drive_params).shape[-1]
-    jump_ops = [0.00001 * dq.destroy(dim)]
+    jump_ops = [jnp.sqrt(1/10_000) * dq.destroy(dim)]
     target_states_jump = [dq.basis(dim, 0), dq.basis(dim, 0)]
     keys = jax.random.split(jax.random.key(31), num=5)
     model = mcsolve_model(H_func, jump_ops, psi0, tsave, keys=keys)

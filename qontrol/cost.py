@@ -478,7 +478,7 @@ class MCInfidelity(Cost):
 
     def _incoherent_infidelity(self, result: SolveResult, target_states, weight):
         overlaps = jnp.einsum(
-            'sid,...sid->...s', jnp.conj(target_states), result.final_state
+            'sid,...sid->...s', jnp.conj(target_states), dq.unit(result.final_state)
         )
         # square before summing
         overlaps_sq = jnp.real(jnp.abs(overlaps * jnp.conj(overlaps)))
