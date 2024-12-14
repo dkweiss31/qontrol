@@ -424,7 +424,7 @@ class IncoherentInfidelity(Cost):
         H: dq.TimeArray,  # noqa ARG002
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
-        final_state = _operator_to_vector(dq.unit(result.final_state))
+        final_state = _operator_to_vector(result.final_state)
         overlaps = jnp.einsum(
             'sid,...sid->...s', jnp.conj(self.target_states), final_state
         )
@@ -451,7 +451,7 @@ class CoherentInfidelity(Cost):
         H: dq.TimeArray,  # noqa ARG002
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
-        final_state = _operator_to_vector(dq.unit(result.final_state))
+        final_state = _operator_to_vector(result.final_state)
         overlaps = jnp.einsum(
             'sid,...sid->...s', jnp.conj(self.target_states), final_state
         )
@@ -469,11 +469,20 @@ class CoherentInfidelity(Cost):
         )
 
 
+# TODO refactor to avoid calling IncoherentInfidelity or  CoherentInfidelity
 class MCInfidelity(Cost):
     cost_multiplier: float
     target_cost: float
     no_jump_cost: IncoherentInfidelity | CoherentInfidelity
     jump_cost: IncoherentInfidelity | CoherentInfidelity
+
+    def _incoherent_infidelity(self, result: SolveResult, target_states, weight):
+        overlaps = jnp.einsum(
+            'sid,...sid->...s', jnp.conj(target_states), result.final_state
+        )
+        # square before summing
+        overlaps_sq = jnp.real(jnp.abs(overlaps * jnp.conj(overlaps)))
+        return jnp.mean(weight * (1 - overlaps_sq))
 
     def __call__(
         self, result: MCSolveResult, H: dq.TimeArray, parameters: dict | Array
@@ -483,14 +492,18 @@ class MCInfidelity(Cost):
         # is the jump batch dimension and t is the time dimension. When we ask for the
         # final_state, this eliminates the time dimension thus the states are correctly
         # ordered
-        jump_states_reordered = result._jump_res.states.swapaxes(-5, -4)  # noqa SLF001
+        jump_states_reordered = result._jump_res.states.swapaxes(-5, -4)
         jump_res = eqx.tree_at(
-            lambda x: x.states,
+            lambda x: x._saved.ysave,
             result._jump_res,  # noqa SLF001
             jump_states_reordered,
         )
-        ((cost_no_jump, _),) = self.no_jump_cost(result._no_jump_res, H, parameters)  # noqa SLF001
-        ((cost_jump, _),) = self.jump_cost(jump_res, H, parameters)
+        cost_no_jump = self._incoherent_infidelity(
+            result._no_jump_res, self.no_jump_cost.target_states, result.no_jump_prob
+        )
+        cost_jump = self._incoherent_infidelity(
+            jump_res, self.jump_cost.target_states, 1 - result.no_jump_prob
+        )
         cost = self.cost_multiplier * (cost_no_jump + cost_jump)
         return ((cost, cost < self.target_cost),)
 

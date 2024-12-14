@@ -213,12 +213,7 @@ def mcsolve_model(
     )
     jump_ops = [_astimearray(L) for L in jump_ops]
     return MCSolveModel(
-        H_function,
-        psi0,
-        tsave_function,
-        exp_ops=exp_ops,
-        jump_ops=jump_ops,
-        keys=keys,
+        H_function, psi0, tsave_function, exp_ops=exp_ops, jump_ops=jump_ops, keys=keys
     )
 
 

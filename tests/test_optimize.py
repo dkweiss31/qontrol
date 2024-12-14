@@ -122,13 +122,11 @@ def test_mcsolve_optimize(tmp_path):
     optimizer_options = {'epochs': 4000, 'all_costs': True, 'plot': False}
     dq_options = dq.Options(progress_meter=None)
     dim = H_func(init_drive_params).shape[-1]
-    jump_ops = [0.0001 * dq.destroy(dim)]
+    jump_ops = [0.00001 * dq.destroy(dim)]
     target_states_jump = [dq.basis(dim, 0), dq.basis(dim, 0)]
     keys = jax.random.split(jax.random.key(31), num=5)
     model = mcsolve_model(H_func, jump_ops, psi0, tsave, keys=keys)
-    cost = mc_incoherent_infidelity(
-        target_states, target_states_jump, jump_multiplier=0.0001
-    )
+    cost = mc_incoherent_infidelity(target_states, target_states_jump)
     optimizer = optax.adam(0.0001, b1=0.99, b2=0.99)
     opt_params = optimize(
         init_drive_params,
