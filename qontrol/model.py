@@ -152,7 +152,6 @@ def mesolve_model(
     H_function, rho0, tsave_function, exp_ops = _initialize_model(
         H_function, rho0, tsave_or_function, exp_ops
     )
-    jump_ops = [_astimearray(L) for L in jump_ops]
     return MESolveModel(
         H_function, rho0, tsave_function, exp_ops=exp_ops, jump_ops=jump_ops
     )
@@ -211,7 +210,6 @@ def mcsolve_model(
     H_function, psi0, tsave_function, exp_ops = _initialize_model(
         H_function, psi0, tsave_or_function, exp_ops
     )
-    jump_ops = [_astimearray(L) for L in jump_ops]
     return MCSolveModel(
         H_function, psi0, tsave_function, exp_ops=exp_ops, jump_ops=jump_ops, keys=keys
     )
