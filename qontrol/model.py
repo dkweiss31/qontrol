@@ -6,10 +6,11 @@ import jax.numpy as jnp
 import jax.random
 import jax.tree_util as jtu
 import optimistix as optx
-from dynamiqs import TimeArray
+from dynamiqs import TimeQArray
+from dynamiqs.qarrays.utils import asqarray
 from dynamiqs._utils import cdtype
 from dynamiqs.gradient import Gradient
-from dynamiqs.integrators._utils import _astimearray
+from dynamiqs.integrators._utils import _astimeqarray
 from dynamiqs.result import Result
 from dynamiqs.solver import Solver, Tsit5
 from jax import Array
@@ -149,8 +150,8 @@ def mesolve_model(
         See [this tutorial](../examples/Kerr_oscillator#master-equation-optimization)
         for example
     """
-    H_function, rho0, tsave_function, exp_ops = _initialize_model(
-        H_function, rho0, tsave_or_function, exp_ops
+    H_function, tsave_function = _initialize_model(
+        H_function, tsave_or_function
     )
     return MESolveModel(
         H_function, rho0, tsave_function, exp_ops=exp_ops, jump_ops=jump_ops
@@ -207,8 +208,8 @@ def mcsolve_model(
         ```
         # TODO add mcsolve tutorial
     """  # noqa E501
-    H_function, psi0, tsave_function, exp_ops = _initialize_model(
-        H_function, psi0, tsave_or_function, exp_ops
+    H_function, tsave_function = _initialize_model(
+        H_function, tsave_or_function
     )
     return MCSolveModel(
         H_function, psi0, tsave_function, exp_ops=exp_ops, jump_ops=jump_ops, keys=keys
@@ -217,18 +218,14 @@ def mcsolve_model(
 
 def _initialize_model(
     H_function: callable,
-    psi0: ArrayLike,
     tsave_or_function: ArrayLike | callable,
-    exp_ops: list[ArrayLike] | None,
 ) -> [callable, Array, callable, Array]:
     H_function = jtu.Partial(H_function)
-    psi0 = jnp.asarray(psi0, dtype=cdtype())
     if callable(tsave_or_function):
         tsave_function = jtu.Partial(tsave_or_function)
     else:
         tsave_function = jtu.Partial(lambda _: tsave_or_function)
-    exp_ops = jnp.asarray(exp_ops, dtype=cdtype()) if exp_ops is not None else None
-    return H_function, psi0, tsave_function, exp_ops
+    return H_function, tsave_function
 
 
 class Model(eqx.Module):
@@ -244,7 +241,7 @@ class Model(eqx.Module):
         root_finder: optx.AbstractRootFinder | None = None,
         gradient: Gradient | None = None,
         options: dq.Options = dq.Options(),  # noqa B008
-    ) -> tuple[Result, TimeArray]:
+    ) -> tuple[Result, TimeQArray]:
         raise NotImplementedError
 
 
@@ -262,7 +259,7 @@ class SESolveModel(Model):
         root_finder: optx.AbstractRootFinder | None = None,
         gradient: Gradient | None = None,
         options: dq.Options = dq.Options(),  # noqa B008
-    ) -> tuple[Result, TimeArray]:
+    ) -> tuple[Result, TimeQArray]:
         new_H = self.H_function(parameters)
         new_tsave = self.tsave_function(parameters)
         result = dq.sesolve(
@@ -284,7 +281,7 @@ class MESolveModel(Model):
     as well as the updated Hamiltonian.
     """
 
-    jump_ops: list[TimeArray]
+    jump_ops: list[TimeQArray]
 
     def __call__(
         self,
@@ -293,7 +290,7 @@ class MESolveModel(Model):
         root_finder: optx.AbstractRootFinder | None = None,
         gradient: Gradient | None = None,
         options: dq.Options = dq.Options(),  # noqa B008
-    ) -> tuple[Result, TimeArray]:
+    ) -> tuple[Result, TimeQArray]:
         new_H = self.H_function(parameters)
         new_tsave = self.tsave_function(parameters)
         result = dq.mesolve(
@@ -316,7 +313,7 @@ class MCSolveModel(Model):
     as well as the updated Hamiltonian.
     """
 
-    jump_ops: list[TimeArray]
+    jump_ops: list[TimeQArray]
     keys: Array
 
     def __call__(
@@ -326,7 +323,7 @@ class MCSolveModel(Model):
         root_finder: optx.AbstractRootFinder = optx.Newton(1e-5, 1e-5, optx.rms_norm),  # noqa: B008
         gradient: Gradient | None = None,
         options: dq.Options = dq.Options(),  # noqa B008
-    ) -> tuple[Result, TimeArray]:
+    ) -> tuple[Result, TimeQArray]:
         new_H = self.H_function(parameters)
         new_tsave = self.tsave_function(parameters)
         result = dq.mcsolve(

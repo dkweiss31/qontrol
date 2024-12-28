@@ -5,21 +5,22 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
-from dynamiqs._utils import cdtype
+from dynamiqs import QArray, QArrayLike
 from dynamiqs.result import MCSolveResult, SolveResult
-from dynamiqs.time_array import SummedTimeArray
-from jax import Array, vmap
-from jaxtyping import ArrayLike
+from dynamiqs.time_qarray import SummedTimeQArray
+from dynamiqs.qarrays.utils import asqarray
+from jax import QArray, vmap
+from jaxtyping import QArrayLike
 
 
-def _operator_to_vector(states: Array) -> Array:
+def _operator_to_vector(states: QArray) -> QArray:
     if dq.isdm(states):
         return dq.operator_to_vector(states)
     return states
 
 
 def incoherent_infidelity(
-    target_states: ArrayLike, cost_multiplier: float = 1.0, target_cost: float = 0.005
+    target_states: QArrayLike, cost_multiplier: float = 1.0, target_cost: float = 0.005
 ) -> IncoherentInfidelity:
     r"""Instantiate the cost function for calculating infidelity incoherently.
 
@@ -45,14 +46,14 @@ def incoherent_infidelity(
         _(IncoherentInfidelity)_: Callable object that returns the incoherent infidelity
             and whether the infidelity is below the target value.
     """  # noqa: E501
-    target_states = jnp.asarray(target_states, dtype=cdtype())
+    target_states = asqarray(target_states)
     if dq.isdm(target_states):
         target_states = dq.operator_to_vector(target_states)
     return IncoherentInfidelity(cost_multiplier, target_cost, target_states)
 
 
 def coherent_infidelity(
-    target_states: list[ArrayLike],
+    target_states: list[QArrayLike],
     cost_multiplier: float = 1.0,
     target_cost: float = 0.005,
 ) -> CoherentInfidelity:
@@ -80,15 +81,15 @@ def coherent_infidelity(
         _(CoherentInfidelity)_: Callable object that returns the coherent infidelity
             and whether the infidelity is below the target value.
     """  # noqa: E501
-    target_states = jnp.asarray(target_states, dtype=cdtype())
+    target_states = asqarray(target_states)
     if dq.isdm(target_states):
         target_states = dq.operator_to_vector(target_states)
     return CoherentInfidelity(cost_multiplier, target_cost, target_states)
 
 
 def mc_coherent_infidelity(
-    target_states_no_jump: list[ArrayLike],
-    target_states_jump: list[ArrayLike],
+    target_states_no_jump: list[QArrayLike],
+    target_states_jump: list[QArrayLike],
     no_jump_multiplier: float = 1.0,
     jump_multiplier: float = 1.0,
     cost_multiplier: float = 1.0,
@@ -135,8 +136,8 @@ def mc_coherent_infidelity(
 
 
 def mc_incoherent_infidelity(
-    target_states_no_jump: list[ArrayLike],
-    target_states_jump: list[ArrayLike],
+    target_states_no_jump: list[QArrayLike],
+    target_states_jump: list[QArrayLike],
     no_jump_multiplier: float = 1.0,
     jump_multiplier: float = 1.0,
     cost_multiplier: float = 1.0,
@@ -185,7 +186,7 @@ def mc_incoherent_infidelity(
 
 
 def forbidden_states(
-    forbidden_states_list: list[ArrayLike],
+    forbidden_states_list: list[QArrayLike],
     cost_multiplier: float = 1.0,
     target_cost: float = 0.0,
 ) -> ForbiddenStates:
@@ -304,7 +305,7 @@ def custom_control_cost(
     $$
 
     Args:
-        cost_fun _(callable)_: Cost function which must have signature `(control_amp: Array) -> Array`.
+        cost_fun _(callable)_: Cost function which must have signature `(control_amp: QArray) -> QArray`.
         cost_multiplier _(float)_: Weight for this cost function relative to other cost
             functions.
         target_cost _(float)_: Target value for this cost function. If options.all_costs
@@ -318,7 +319,7 @@ def custom_control_cost(
 
     Examples:
         ```python
-        def penalize_negative(control_amp: jax.Array) -> jax.Array:
+        def penalize_negative(control_amp: jax.QArray) -> jax.QArray:
             return jax.nn.relu(-control_amp)
 
 
@@ -340,7 +341,7 @@ def custom_cost(
 
     Args:
         cost_fun _(callable)_: Cost function which must have signature
-            `(result: dq.SolveResult, H: dq.TimeArray, parameters: dict | Array) -> Array`.
+            `(result: dq.SolveResult, H: dq.TimeQArray, parameters: dict | QArray) -> QArray`.
         cost_multiplier _(float)_: Weight for this cost function relative to other cost
             functions.
         target_cost _(float)_: Target value for this cost function. If options.all_costs
@@ -357,8 +358,8 @@ def custom_cost(
 
         ```python
         def penalize_expect(
-            result: SolveResult, H: dq.TimeArray, parameters: dict | Array
-        ) -> Array:
+            result: SolveResult, H: dq.TimeQArray, parameters: dict | QArray
+        ) -> QArray:
             # 0 is the index of the operator, -1 is the time index
             return jnp.sum(jnp.abs(result.expects[0, -1]))
 
@@ -376,8 +377,8 @@ def custom_cost(
 
 class Cost(eqx.Module):
     def __call__(
-        self, result: SolveResult, H: dq.TimeArray, parameters: dict | Array
-    ) -> Array:
+        self, result: SolveResult, H: dq.TimeQArray, parameters: dict | QArray
+    ) -> QArray:
         raise NotImplementedError
 
     def __add__(self, other: Cost) -> SummedCost:
@@ -399,8 +400,8 @@ class SummedCost(Cost):
     costs: list[Cost]
 
     def __call__(
-        self, result: SolveResult, H: dq.TimeArray, parameters: dict | Array
-    ) -> list[Array]:
+        self, result: SolveResult, H: dq.TimeQArray, parameters: dict | QArray
+    ) -> list[QArray]:
         return [cost(result, H, parameters)[0] for cost in self.costs]
 
     def __mul__(self, y: float) -> SummedCost:
@@ -416,14 +417,14 @@ class SummedCost(Cost):
 class IncoherentInfidelity(Cost):
     cost_multiplier: float
     target_cost: float
-    target_states: Array
+    target_states: QArray
 
     def __call__(
         self,
         result: SolveResult,
-        H: dq.TimeArray,  # noqa ARG002
-        parameters: dict | Array,  # noqa ARG002
-    ) -> tuple[tuple[Array, Array]]:
+        H: dq.TimeQArray,  # noqa ARG002
+        parameters: dict | QArray,  # noqa ARG002
+    ) -> tuple[tuple[QArray, QArray]]:
         final_state = _operator_to_vector(result.final_state)
         overlaps = jnp.einsum(
             'sid,...sid->...s', jnp.conj(self.target_states), final_state
@@ -443,14 +444,14 @@ class IncoherentInfidelity(Cost):
 class CoherentInfidelity(Cost):
     cost_multiplier: float
     target_cost: float
-    target_states: Array
+    target_states: QArray
 
     def __call__(
         self,
         result: SolveResult,
-        H: dq.TimeArray,  # noqa ARG002
-        parameters: dict | Array,  # noqa ARG002
-    ) -> tuple[tuple[Array, Array]]:
+        H: dq.TimeQArray,  # noqa ARG002
+        parameters: dict | QArray,  # noqa ARG002
+    ) -> tuple[tuple[QArray, QArray]]:
         final_state = _operator_to_vector(result.final_state)
         overlaps = jnp.einsum(
             'sid,...sid->...s', jnp.conj(self.target_states), final_state
@@ -485,8 +486,8 @@ class MCInfidelity(Cost):
         return jnp.mean(weight * (1 - overlaps_sq))
 
     def __call__(
-        self, result: MCSolveResult, H: dq.TimeArray, parameters: dict | Array
-    ) -> tuple[tuple[Array, Array]]:
+        self, result: MCSolveResult, H: dq.TimeQArray, parameters: dict | QArray
+    ) -> tuple[tuple[QArray, QArray]]:
         # want the states to be ordered as ...sid where s is the initial states, i is
         # the hilbert dim and d has dimension 1. Initially ordered as ...sjtid, where j
         # is the jump batch dimension and t is the time dimension. When we ask for the
@@ -511,14 +512,14 @@ class MCInfidelity(Cost):
 class ForbiddenStates(Cost):
     cost_multiplier: float
     target_cost: float
-    forbidden_states: Array
+    forbidden_states: QArray
 
     def __call__(
         self,
         result: SolveResult,
-        H: dq.TimeArray,  # noqa ARG002
-        parameters: dict | Array,  # noqa ARG002
-    ) -> tuple[tuple[Array, Array]]:
+        H: dq.TimeQArray,  # noqa ARG002
+        parameters: dict | QArray,  # noqa ARG002
+    ) -> tuple[tuple[QArray, QArray]]:
         # states has dims ...stid, where s is initial_states batching, t has
         # dimension of tsave and id are the state dimensions.
         states = _operator_to_vector(result.states)
@@ -540,18 +541,18 @@ class ControlCost(Cost):
     target_cost: float
 
     def evaluate_controls(
-        self, result: SolveResult, H: dq.TimeArray, func: callable
-    ) -> Array:
-        def _evaluate_at_tsave(_H: dq.TimeArray) -> Array:
+        self, result: SolveResult, H: dq.TimeQArray, func: callable
+    ) -> QArray:
+        def _evaluate_at_tsave(_H: dq.TimeQArray) -> QArray:
             if hasattr(_H, 'prefactor'):
                 return jnp.sum(func(vmap(_H.prefactor)(result.tsave)))
             return jnp.array(0.0)
 
-        if isinstance(H, SummedTimeArray):
+        if isinstance(H, SummedTimeQArray):
             control_val = 0.0
-            # ugly for loop, having trouble with vmap or scan because only PWCTimeArray
-            # and ModulatedTimeArray have attributes prefactor
-            for _H in H.timearrays:
+            # ugly for loop, having trouble with vmap or scan because only PWCTimeQArray
+            # and ModulatedTimeQArray have attributes prefactor
+            for _H in H.timeqarrays:
                 control_val += _evaluate_at_tsave(_H)
         else:
             control_val = _evaluate_at_tsave(H)
@@ -568,9 +569,9 @@ class ControlCostNorm(ControlCost):
     def __call__(
         self,
         result: SolveResult,
-        H: dq.TimeArray,
-        parameters: dict | Array,  # noqa ARG002
-    ) -> tuple[tuple[Array, Array]]:
+        H: dq.TimeQArray,
+        parameters: dict | QArray,  # noqa ARG002
+    ) -> tuple[tuple[QArray, QArray]]:
         cost = jnp.abs(
             self.evaluate_controls(
                 result, H, lambda x: jax.nn.relu(jnp.abs(x) - self.threshold)
@@ -588,9 +589,9 @@ class ControlCostArea(ControlCost):
     def __call__(
         self,
         result: SolveResult,
-        H: dq.TimeArray,
-        parameters: dict | Array,  # noqa ARG002
-    ) -> tuple[tuple[Array, Array]]:
+        H: dq.TimeQArray,
+        parameters: dict | QArray,  # noqa ARG002
+    ) -> tuple[tuple[QArray, QArray]]:
         cost = jnp.abs(self.evaluate_controls(result, H, lambda x: x))
         return ((cost, cost < self.target_cost),)
 
@@ -604,9 +605,9 @@ class CustomControlCost(ControlCost):
     def __call__(
         self,
         result: SolveResult,
-        H: dq.TimeArray,
-        parameters: dict | Array,  # noqa ARG002
-    ) -> tuple[tuple[Array, Array]]:
+        H: dq.TimeQArray,
+        parameters: dict | QArray,  # noqa ARG002
+    ) -> tuple[tuple[QArray, QArray]]:
         cost = jnp.abs(self.evaluate_controls(result, H, self.cost_fun))
         return ((cost, cost < self.target_cost),)
 
@@ -622,8 +623,8 @@ class CustomCost(Cost):
     cost_fun: callable
 
     def __call__(
-        self, result: SolveResult, H: dq.TimeArray, parameters: dict | Array
-    ) -> tuple[tuple[Array, Array]]:
+        self, result: SolveResult, H: dq.TimeQArray, parameters: dict | QArray
+    ) -> tuple[tuple[QArray, QArray]]:
         cost = self.cost_fun(result, H, parameters)
         return ((cost, cost < self.target_cost),)
 
