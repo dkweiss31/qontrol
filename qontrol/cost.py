@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import dynamiqs as dq
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
 from dynamiqs import asqarray, isket, QArray, QArrayLike, TimeQArray
-from dynamiqs.result import SolveResult
+from dynamiqs.result import SolveResult, MCSolveResult
 from dynamiqs.time_qarray import SummedTimeQArray
 from jax import Array, vmap
 
@@ -19,7 +20,7 @@ def incoherent_infidelity(
 
     This infidelity is defined as
     $$
-        F_{\rm incoherent} = \sum_{k}|\langle\psi_{t}^{k}|\psi_{i}^{k}(T)\rangle|^2,
+        C_{\rm incoherent} = 1 - \sum_{k}|\langle\psi_{t}^{k}|\psi_{i}^{k}(T)\rangle|^2,
     $$
     where the states at the end of the pulse are $|\psi_{i}^{k}(T)\rangle$ and the
     target states are $|\psi_{t}^{k}\rangle$.
@@ -51,7 +52,7 @@ def coherent_infidelity(
 
     This infidelity is defined as
     $$
-        F_{\rm coherent} = |\sum_{k}\langle\psi_{t}^{k}|\psi_{i}^{k}(T)\rangle|^2,
+        C_{\rm coherent} = 1 - |\sum_{k}\langle\psi_{t}^{k}|\psi_{i}^{k}(T)\rangle|^2,
     $$
     where the states at the end of the pulse are $|\psi_{i}^{k}(T)\rangle$ and the
     target states are $|\psi_{t}^{k}\rangle$.
@@ -72,6 +73,104 @@ def coherent_infidelity(
             and whether the infidelity is below the target value.
     """  # noqa: E501
     return CoherentInfidelity(cost_multiplier, target_cost, asqarray(target_states))
+
+
+def mc_coherent_infidelity(
+    target_states_no_jump: list[QArrayLike],
+    target_states_jump: list[QArrayLike],
+    no_jump_multiplier: float = 1.0,
+    jump_multiplier: float = 1.0,
+    cost_multiplier: float = 1.0,
+    target_cost: float = 0.005,
+) -> MCInfidelity:
+    r"""Instantiate the cost function for mc trajectory coherent infidelity.
+
+    This infidelity is defined as
+    $$
+        C_{\rm mc, coherent} = m_{\rm nj}\left(1 - \left\langle\left|\sum_{k}\langle\psi_{\rm t, nj}^{(k)}|\psi_{\rm f, nj}^{(k)} \rangle\right|^2\right\rangle\right)
+        + m_{\rm j}\left(1 - \left\langle\sum_{\ell}\left|\sum_{k}\langle\psi_{\rm t, j}^{(k)}|\psi_{\rm f, j}^{(k)}(\ell) \rangle\right|^2\right\rangle\right),
+    $$
+    where $m_{\rm nj}$ is `no_jump_multiplier`, $m_{\rm j}$ is `jump_multiplier`,
+    $k$ indexes the initial states, $\ell$ indexes the jump trajectories, the
+    final no-jump states are $|\psi_{\rm f, nj}^{(k)} \rangle$, the final jump states
+    are $|\psi_{\rm f, j}^{(k)}(\ell) \rangle$, the target no-jump states are
+    $|\psi_{\rm t, nj}^{(k)} \rangle$, and the target jump states
+    are $|\psi_{\rm t, j}^{(k)} \rangle$. The angle brackets represent averaging
+    over initial states, trajectories as well as any other batch dimensions.
+
+    Args:
+        target_states_no_jump _(array_like of shape (s, n, 1))_: target states for the
+            no-jump trajectories.
+        target_states_jump _(array_like of shape (s, n, 1))_: target states for the
+            jump trajectories.
+        no_jump_multiplier _(float)_: Weight for the no-jump cost
+        jump_multiplier _(float)_: Weight for the jump cost
+        cost_multiplier _(float)_: Weight for this cost function relative to other cost
+            functions.
+        target_cost _(float)_: Target value for this cost function. If options.all_costs
+            is True, the optimization terminates early if all cost functions fall below
+            their target values. If options.all_costs is False, the optimization
+            terminates if only one cost function falls below its target value.
+
+    Returns:
+        _(MCInfidelity)_: Callable object that returns the infidelity and whether it is
+            below the target value.
+    """  # noqa: E501
+    no_jump_cost = coherent_infidelity(
+        target_states_no_jump, cost_multiplier=no_jump_multiplier
+    )
+    jump_cost = coherent_infidelity(target_states_jump, cost_multiplier=jump_multiplier)
+    return MCInfidelity(cost_multiplier, target_cost, no_jump_cost, jump_cost)
+
+
+def mc_incoherent_infidelity(
+    target_states_no_jump: list[QArrayLike],
+    target_states_jump: list[QArrayLike],
+    no_jump_multiplier: float = 1.0,
+    jump_multiplier: float = 1.0,
+    cost_multiplier: float = 1.0,
+    target_cost: float = 0.005,
+) -> MCInfidelity:
+    r"""Instantiate the cost function for mc trajectory coherent infidelity.
+
+    This infidelity is defined as
+    $$
+        C_{\rm mc, coherent} = m_{\rm nj}\left(1 - \left\langle\sum_{k}|\langle\psi_{\rm t, nj}^{(k)}|\psi_{\rm f, nj}^{(k)} \rangle|^2\right\rangle\right)
+        + m_{\rm j}\left(1 - \left\langle\sum_{k,\ell}|\langle\psi_{\rm t, j}^{(k)}|\psi_{\rm f, j}^{(k)}(\ell) \rangle|^2\right\rangle\right),
+    $$
+    where $m_{\rm nj}$ is `no_jump_multiplier`, $m_{\rm j}$ is `jump_multiplier`,
+    $k$ indexes the initial states, $\ell$ indexes the jump trajectories, the
+    final no-jump states are $|\psi_{\rm f, nj}^{(k)} \rangle$, the final jump states
+    are $|\psi_{\rm f, j}^{(k)}(\ell) \rangle$, the target no-jump states are
+    $|\psi_{\rm t, nj}^{(k)} \rangle$, and the target jump states
+    are $|\psi_{\rm t, j}^{(k)} \rangle$. The angle brackets represent averaging
+    over initial states, trajectories as well as any other batch dimensions.
+
+    Args:
+        target_states_no_jump _(array_like of shape (s, n, 1))_: target states for the
+            no-jump trajectories.
+        target_states_jump _(array_like of shape (s, n, 1))_: target states for the
+            jump trajectories.
+        no_jump_multiplier _(float)_: Weight for the no-jump cost
+        jump_multiplier _(float)_: Weight for the jump cost
+        cost_multiplier _(float)_: Weight for this cost function relative to other cost
+            functions.
+        target_cost _(float)_: Target value for this cost function. If options.all_costs
+            is True, the optimization terminates early if all cost functions fall below
+            their target values. If options.all_costs is False, the optimization
+            terminates if only one cost function falls below its target value.
+
+    Returns:
+        _(MCInfidelity)_: Callable object that returns the infidelity and whether it is
+            below the target value.
+    """  # noqa: E501
+    no_jump_cost = incoherent_infidelity(
+        target_states_no_jump, cost_multiplier=no_jump_multiplier
+    )
+    jump_cost = incoherent_infidelity(
+        target_states_jump, cost_multiplier=jump_multiplier
+    )
+    return MCInfidelity(cost_multiplier, target_cost, no_jump_cost, jump_cost)
 
 
 def forbidden_states(
@@ -197,7 +296,7 @@ def custom_control_cost(
     $$
 
     Args:
-        cost_fun _(callable)_: Cost function which must have signature `(control_amp: Array) -> Array`.
+        cost_fun _(callable)_: Cost function which must have signature `(control_amp: QArray) -> QArray`.
         cost_multiplier _(float)_: Weight for this cost function relative to other cost
             functions.
         target_cost _(float)_: Target value for this cost function. If options.all_costs
@@ -356,6 +455,45 @@ class CoherentInfidelity(Cost):
         return CoherentInfidelity(
             other * self.cost_multiplier, self.target_cost, self.target_states
         )
+
+
+# TODO refactor to avoid calling IncoherentInfidelity or  CoherentInfidelity
+class MCInfidelity(Cost):
+    cost_multiplier: float
+    target_cost: float
+    no_jump_cost: IncoherentInfidelity | CoherentInfidelity
+    jump_cost: IncoherentInfidelity | CoherentInfidelity
+
+    def _incoherent_infidelity(self, result: SolveResult, target_states, weight):
+        overlaps = jnp.einsum(
+            'sid,...sid->...s', jnp.conj(target_states), dq.unit(result.final_state)
+        )
+        # square before summing
+        overlaps_sq = jnp.real(jnp.abs(overlaps * jnp.conj(overlaps)))
+        return jnp.mean(weight * (1 - overlaps_sq))
+
+    def __call__(
+        self, result: MCSolveResult, H: dq.TimeQArray, parameters: dict | QArray
+    ) -> tuple[tuple[QArray, QArray]]:
+        # want the states to be ordered as ...sid where s is the initial states, i is
+        # the hilbert dim and d has dimension 1. Initially ordered as ...sjtid, where j
+        # is the jump batch dimension and t is the time dimension. When we ask for the
+        # final_state, this eliminates the time dimension thus the states are correctly
+        # ordered
+        jump_states_reordered = result._jump_res.states.swapaxes(-5, -4)
+        jump_res = eqx.tree_at(
+            lambda x: x._saved.ysave,
+            result._jump_res,  # noqa SLF001
+            jump_states_reordered,
+        )
+        cost_no_jump = self._incoherent_infidelity(
+            result._no_jump_res, self.no_jump_cost.target_states, result.no_jump_prob
+        )
+        cost_jump = self._incoherent_infidelity(
+            jump_res, self.jump_cost.target_states, 1 - result.no_jump_prob
+        )
+        cost = self.cost_multiplier * (cost_no_jump + cost_jump)
+        return ((cost, cost < self.target_cost),)
 
 
 class ForbiddenStates(Cost):

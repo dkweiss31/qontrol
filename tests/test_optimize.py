@@ -14,6 +14,8 @@ from qontrol import (
     extract_info_from_h5,
     forbidden_states,
     incoherent_infidelity,
+    mc_incoherent_infidelity,
+    mcsolve_model,
     mesolve_model,
     optimize,
     sesolve_model,
@@ -49,7 +51,7 @@ def setup_Kerr_osc(nH=None):
 
     def H_func(drive_params_dict: dict) -> Array:
         drive_params = drive_params_dict['dp']
-        H = H0
+        H = dq.constant(H0)
         for H1, drive_param in zip(H1s, drive_params):
             drive_spline = _drive_spline(drive_param)
             H += dq.modulated(drive_spline.evaluate, H1)
@@ -109,8 +111,35 @@ def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
         opt_options=optimizer_options,
         dq_options=dq_options,
     )
-    opt_result, opt_H = model(opt_params, Tsit5(), None, dq_options)
+    opt_result, opt_H = model(opt_params, Tsit5(), None, None, dq_options)
     cost_values, terminate = zip(*costs(opt_result, opt_H, opt_params))
+    assert all(terminate)
+
+
+def test_mcsolve_optimize(tmp_path):
+    filepath = _filepath(tmp_path)
+    H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc(())
+    optimizer_options = {'epochs': 4000, 'all_costs': True, 'plot': False}
+    dq_options = dq.Options(progress_meter=None)
+    dim = H_func(init_drive_params).shape[-1]
+    jump_ops = [jnp.sqrt(1/10_000) * dq.destroy(dim)]
+    target_states_jump = [dq.basis(dim, 0), dq.basis(dim, 0)]
+    keys = jax.random.split(jax.random.key(31), num=5)
+    model = mcsolve_model(H_func, jump_ops, psi0, tsave, keys=keys)
+    cost = mc_incoherent_infidelity(target_states, target_states_jump)
+    optimizer = optax.adam(0.0001, b1=0.99, b2=0.99)
+    opt_params = optimize(
+        init_drive_params,
+        cost,
+        model,
+        optimizer=optimizer,
+        root_finder=None,
+        opt_options=optimizer_options,
+        dq_options=dq_options,
+        filepath=filepath,
+    )
+    opt_result, opt_H = model(opt_params, Tsit5(), None, None, dq_options)
+    cost_values, terminate = zip(*cost(opt_result, opt_H, opt_params))
     assert all(terminate)
 
 
@@ -132,6 +161,6 @@ def test_reinitialize(tmp_path):
         dq_options=dq_options,
     )
     data_dict, _ = extract_info_from_h5(filepath)
-    opt_result, opt_H = model(opt_params, Tsit5(), None, dq_options)
+    opt_result, opt_H = model(opt_params, Tsit5(), None, None, dq_options)
     cost_values, terminate = zip(*costs(opt_result, opt_H, opt_params))
     assert all(terminate)
