@@ -3,7 +3,7 @@ from __future__ import annotations
 import dynamiqs as dq
 import equinox as eqx
 import jax.tree_util as jtu
-from dynamiqs import QArray, QArrayLike, TimeQArray
+from dynamiqs import QArrayLike, TimeQArray
 from dynamiqs.gradient import Gradient
 from dynamiqs.result import Result
 from dynamiqs.solver import Solver, Tsit5
@@ -92,9 +92,7 @@ def sesolve_model(
         See for example [this tutorial](../examples/Kerr_oscillator#time-optimal-control).
 
     """  # noqa E501
-    H_function, tsave_or_function = _initialize_model(
-        H_function, tsave_or_function
-    )
+    H_function, tsave_or_function = _initialize_model(H_function, tsave_or_function)
     return SESolveModel(H_function, psi0, tsave_or_function, exp_ops=exp_ops)
 
 
@@ -144,17 +142,14 @@ def mesolve_model(
         See [this tutorial](../examples/Kerr_oscillator#master-equation-optimization)
         for example
     """
-    H_function, tsave_function = _initialize_model(
-        H_function, tsave_or_function
-    )
+    H_function, tsave_function = _initialize_model(H_function, tsave_or_function)
     return MESolveModel(
         H_function, rho0, tsave_function, exp_ops=exp_ops, jump_ops=jump_ops
     )
 
 
 def _initialize_model(
-    H_function: callable,
-    tsave_or_function: ArrayLike | callable,
+    H_function: callable, tsave_or_function: ArrayLike | callable
 ) -> [callable, callable]:
     H_function = jtu.Partial(H_function)
     if callable(tsave_or_function):

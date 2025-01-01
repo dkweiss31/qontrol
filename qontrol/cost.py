@@ -4,14 +4,16 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
-from dynamiqs import TimeQArray, QArray, QArrayLike, asqarray, isket
+from dynamiqs import asqarray, isket, QArray, QArrayLike, TimeQArray
 from dynamiqs.result import SolveResult
 from dynamiqs.time_qarray import SummedTimeQArray
 from jax import Array, vmap
 
 
 def incoherent_infidelity(
-    target_states: list[QArrayLike], cost_multiplier: float = 1.0, target_cost: float = 0.005
+    target_states: list[QArrayLike],
+    cost_multiplier: float = 1.0,
+    target_cost: float = 0.005,
 ) -> IncoherentInfidelity:
     r"""Instantiate the cost function for calculating infidelity incoherently.
 
@@ -122,7 +124,9 @@ def forbidden_states(
     # add in a dimension for tsave that will be broadcast with the final states
     forbid_array = jnp.zeros((num_states, 1, max_num_forbid, *state_shape))
     for state_idx, forbid_idx in arr_indices:
-        forbidden_state = asqarray(forbidden_states_list[state_idx][forbid_idx]).to_jax()  # TODO fix sparse to dense conversion here
+        forbidden_state = asqarray(
+            forbidden_states_list[state_idx][forbid_idx]
+        ).to_jax()  # TODO fix sparse to dense conversion here
         forbid_array = forbid_array.at[state_idx, 0, forbid_idx].set(forbidden_state)
     return ForbiddenStates(cost_multiplier, target_cost, asqarray(forbid_array))
 
@@ -385,7 +389,9 @@ class ControlCost(Cost):
     cost_multiplier: float
     target_cost: float
 
-    def evaluate_controls(self, result: SolveResult, H: TimeQArray, func: callable) -> Array:
+    def evaluate_controls(
+        self, result: SolveResult, H: TimeQArray, func: callable
+    ) -> Array:
         def _evaluate_at_tsave(_H: TimeQArray) -> Array:
             if hasattr(_H, 'prefactor'):
                 return jnp.sum(func(vmap(_H.prefactor)(result.tsave)))
