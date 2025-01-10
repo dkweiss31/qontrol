@@ -464,35 +464,24 @@ class MCInfidelity(Cost):
     no_jump_cost: IncoherentInfidelity | CoherentInfidelity
     jump_cost: IncoherentInfidelity | CoherentInfidelity
 
-    def _incoherent_infidelity(self, result: SolveResult, target_states, weight):
-        overlaps = jnp.einsum(
-            'sid,...sid->...s', jnp.conj(target_states), dq.unit(result.final_state)
-        )
-        # square before summing
-        overlaps_sq = jnp.real(jnp.abs(overlaps * jnp.conj(overlaps)))
-        return jnp.mean(weight * (1 - overlaps_sq))
-
     def __call__(
         self, result: MCSolveResult, H: dq.TimeQArray, parameters: dict | QArray
-    ) -> tuple[tuple[QArray, QArray]]:
+    ) -> tuple[tuple[Array, Array]]:
         # want the states to be ordered as ...sid where s is the initial states, i is
         # the hilbert dim and d has dimension 1. Initially ordered as ...sjtid, where j
         # is the jump batch dimension and t is the time dimension. When we ask for the
         # final_state, this eliminates the time dimension thus the states are correctly
         # ordered
-        jump_states_reordered = result._jump_res.states.swapaxes(-5, -4)
-        jump_res = eqx.tree_at(
-            lambda x: x._saved.ysave,
-            result._jump_res,  # noqa SLF001
-            jump_states_reordered,
-        )
-        cost_no_jump = self._incoherent_infidelity(
-            result._no_jump_res, self.no_jump_cost.target_states, result.no_jump_prob
-        )
-        cost_jump = self._incoherent_infidelity(
-            jump_res, self.jump_cost.target_states, 1 - result.no_jump_prob
-        )
-        cost = self.cost_multiplier * (cost_no_jump + cost_jump)
+        jump_states = result.final_jump_states
+        jump_overlaps = self.jump_cost.target_states[:, None].dag() @ jump_states
+        jump_overlaps_sq = jnp.abs(jump_overlaps * jnp.conj(jump_overlaps))
+        jump_infids = jnp.mean((1 - result.no_jump_prob) * (1 - jump_overlaps_sq))
+
+        no_jump_overlaps = self.no_jump_cost.target_states.dag() @ result.final_no_jump_state
+        no_jump_overlaps_sq = jnp.abs(no_jump_overlaps * jnp.conj(no_jump_overlaps))
+        no_jump_infids = jnp.mean(result.no_jump_prob * (1 - no_jump_overlaps_sq))
+
+        cost = self.cost_multiplier * (no_jump_infids + jump_infids)
         return ((cost, cost < self.target_cost),)
 
 
