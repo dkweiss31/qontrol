@@ -32,6 +32,7 @@ TERMINATION_MESSAGES = {
 
 default_options = {
     'verbose': True,
+    'ignore_termination': False,
     'all_costs': True,
     'epochs': 2000,
     'plot': True,
@@ -76,6 +77,7 @@ def optimize(
         options _(dict)_: Options for grape optimization.
             verbose _(bool)_: If `True`, the optimizer will print out the infidelity at
                 each epoch step to track the progress of the optimization.
+            ignore_termination _(bool)_: Whether to ignore the various termination conditions
             all_costs _(bool)_: Whether or not all costs must be below their targets for
                 early termination of the optimizer. If False, the optimization terminates
                 if only one cost function is below the target (typically infidelity).
@@ -163,18 +165,19 @@ def optimize(
                     opt_options,
                 )
             # early termination
-            termination_key = _terminate_early(
-                grads,
-                parameters,
-                previous_parameters,
-                total_cost,
-                prev_total_cost,
-                terminate_for_cost,
-                epoch,
-                opt_options,
-            )
-            if termination_key != -1:
-                break
+            if not opt_options["ignore_termination"]:
+                termination_key = _terminate_early(
+                    grads,
+                    parameters,
+                    previous_parameters,
+                    total_cost,
+                    prev_total_cost,
+                    terminate_for_cost,
+                    epoch,
+                    opt_options,
+                )
+                if termination_key != -1:
+                    break
             previous_parameters = parameters
             prev_total_cost = total_cost
     except KeyboardInterrupt:
@@ -189,7 +192,8 @@ def optimize(
             len(cost_values_over_epochs) - 1,
             opt_options,
         )
-    print(TERMINATION_MESSAGES[termination_key])
+    if not opt_options["ignore_termination"]:
+        print(TERMINATION_MESSAGES[termination_key])
     print(
         f'optimization terminated after {epoch} epochs; \n'
         f'average epoch time (excluding jit) of '
