@@ -11,7 +11,7 @@ The project was written using Python 3.10+, you must have a compatible version o
 Clone the repository:
 
 ```shell
-git clone git@github.com:dkweiss31/qontrol.git
+git clone https://github.com/dkweiss31/qontrol.git
 cd qontrol
 ```
 

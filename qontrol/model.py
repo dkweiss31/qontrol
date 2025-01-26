@@ -148,6 +148,74 @@ def mesolve_model(
     )
 
 
+def sepropagator_model(
+    H_function: callable,
+    tsave_or_function: ArrayLike | callable,
+    *,
+    exp_ops: list[ArrayLike] | None = None,
+) -> SEPropagatorModel:
+    r"""Instantiate sepropagator model.
+
+    Here we instantiate the model that is called at each step of the optimization
+    iteration, returning a tuple of the result of calling `sepropagator` as well as the
+    Hamiltonian evaluated at the parameter values.
+
+    Args:
+        H_function _(callable)_: function specifying how to update the Hamiltonian
+        tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
+            array of times passed to sesolve or a method specifying how to update
+            the times that are passed to sesolve
+        exp_ops _(list of array-like)_: Operators to calculate expectation values of,
+            in case some of the cost functions depend on the value of certain
+            expectation values.
+
+    Returns:
+        _(SEPropagateModel)_: Model that when called with the parameters we optimize
+            over as argument returns the results of `aepropagator` as well as the updated
+            Hamiltonian
+
+    Examples:
+        
+
+    """
+    H_function, tsave_or_function = _initialize_model(H_function, tsave_or_function)
+    return SEPropagatorModel(H_function, tsave_or_function, exp_ops=exp_ops)
+
+
+def mepropagator_model(
+    H_function: callable,
+    tsave_or_function: ArrayLike | callable,
+    *,
+    exp_ops: list[ArrayLike] | None = None,
+) -> MEPropagatorModel:
+    r"""Instantiate mepropagator model.
+
+    Here we instantiate the model that is called at each step of the optimization
+    iteration, returning a tuple of the result of calling `mepropagator` as well as the
+    Hamiltonian evaluated at the parameter values.
+
+    Args:
+        H_function _(callable)_: function specifying how to update the Hamiltonian
+        tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
+            array of times passed to sesolve or a method specifying how to update
+            the times that are passed to sesolve
+        exp_ops _(list of array-like)_: Operators to calculate expectation values of,
+            in case some of the cost functions depend on the value of certain
+            expectation values.
+
+    Returns:
+        _(MEPropagateModel)_: Model that when called with the parameters we optimize
+            over as argument returns the results of `mepropagator` as well as the updated
+            Hamiltonian
+
+    Examples:
+        
+
+    """  # noqa E501
+    H_function, tsave_or_function = _initialize_model(H_function, tsave_or_function)
+    return MEPropagatorModel(H_function, tsave_or_function, exp_ops=exp_ops)
+
+
 def _initialize_model(
     H_function: callable, tsave_or_function: ArrayLike | callable
 ) -> [callable, callable]:
@@ -225,6 +293,63 @@ class MESolveModel(Model):
             new_H,
             self.jump_ops,
             self.initial_states,
+            new_tsave,
+            exp_ops=self.exp_ops,
+            solver=solver,
+            gradient=gradient,
+            options=options,
+        )
+        return result, new_H
+
+
+class SEPropagatorModel(Model):
+    r"""Model for Schrödinger-equation propagator optimization.
+
+    When called with the parameters we optimize over returns the results of `sepropagate`
+    as well as the updated Hamiltonian.
+    """
+
+    def __call__(
+        self,
+        parameters: Array | dict,
+        solver: Solver = Tsit5(),  # noqa B008
+        gradient: Gradient | None = None,
+        options: dq.Options = dq.Options(),  # noqa B008
+    ) -> tuple[Result, TimeQArray]:
+        new_H = self.H_function(parameters)
+        new_tsave = self.tsave_function(parameters)
+        result = dq.sepropagator(
+            new_H,
+            new_tsave,
+            exp_ops=self.exp_ops,
+            solver=solver,
+            gradient=gradient,
+            options=options,
+        )
+        return result, new_H
+
+
+class MEPropagatorModel(Model):
+    r"""Model for Lindblad-master-equation propagator optimization.
+
+    When called with the parameters we optimize over returns the results of `mesolve`
+    as well as the updated Hamiltonian.
+    """
+
+    jump_ops: list[QArrayLike | TimeQArray]
+
+    def __call__(
+        self,
+        parameters: Array | dict,
+        solver: Solver = Tsit5(),  # noqa B008
+        gradient: Gradient | None = None,
+        options: dq.Options = dq.Options(),  # noqa B008
+    ) -> tuple[Result, TimeQArray]:
+        new_H = self.H_function(parameters)
+        new_tsave = self.tsave_function(parameters)
+        result = dq.mepropagator(
+            new_H,
+            self.jump_ops,
             new_tsave,
             exp_ops=self.exp_ops,
             solver=solver,
