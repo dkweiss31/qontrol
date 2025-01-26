@@ -157,25 +157,71 @@ def sepropagator_model(
     r"""Instantiate sepropagator model.
 
     Here we instantiate the model that is called at each step of the optimization
-    iteration, returning a tuple of the result of calling `sepropagator` as well as the
-    Hamiltonian evaluated at the parameter values.
+    iteration, returning a tuple of the result of calling `sepropagator` as well
+    as the Hamiltonian evaluated at the parameter values.
 
     Args:
         H_function _(callable)_: function specifying how to update the Hamiltonian
         tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
-            array of times passed to sesolve or a method specifying how to update
-            the times that are passed to sesolve
+            array of times passed to the solver or a method specifying how to update
+            the times that are passed to the solver
         exp_ops _(list of array-like)_: Operators to calculate expectation values of,
             in case some of the cost functions depend on the value of certain
             expectation values.
 
     Returns:
-        _(SEPropagateModel)_: Model that when called with the parameters we optimize
-            over as argument returns the results of `aepropagator` as well as the updated
-            Hamiltonian
+        _(SEPropagatorModel)_: Model that when called with the parameters we optimize
+            over as argument returns the results of `sepropagator` as well as the
+            updated Hamiltonian
 
     Examples:
-        
+        In this simple example the parameters are the amplitudes of piecewise-constant
+        controls
+        ```python
+        tsave = jnp.linspace(0.0, 11.0, 10)
+        H1s = [dq.sigmax(), dq.sigmay()]
+
+
+        def H_pwc(values: Array) -> dq.TimeArray:
+            H = dq.sigmaz()
+            for idx, _H1 in enumerate(H1s):
+                H += dq.pwc(tsave, values[idx], _H1)
+            return H
+
+
+        sepropagator_model = ql.sepropagator_model(H_pwc, tsave)
+        ```
+
+        In more complex cases, we can imagine that the optimized parameters
+        are the control points fed into a spline, and additionally the control
+        times themselves are optimized.
+        ```python
+        init_drive_params_topt = {
+            'dp': -0.001 * jnp.ones((len(H1s), len(tsave))),
+            't': tsave[-1],
+        }
+
+
+        def H_func_topt(t: float, drive_params_dict: dict) -> dq.TimeArray:
+            drive_params = drive_params_dict['dp']
+            new_tsave = jnp.linspace(0.0, drive_params_dict['t'], len(tsave))
+            drive_spline = _drive_spline(drive_params, envelope, new_tsave)
+            drive_amps = drive_spline.evaluate(t)
+            drive_Hs = jnp.einsum('d,dij->ij', drive_amps, H1s)
+            return H0 + drive_Hs
+
+
+        def update_H_topt(drive_params_dict: dict) -> dq.TimeArray:
+            new_H = jtu.Partial(H_func_topt, drive_params_dict=drive_params_dict)
+            return dq.timecallable(new_H)
+
+
+        def update_tsave_topt(drive_params_dict: dict) -> jax.Array:
+            return jnp.linspace(0.0, drive_params_dict['t'], len(tsave))
+
+
+        sep_t_opt_Kerr_model = ql.sepropagator_model(update_H_topt, update_tsave_topt)
+        ```
 
     """
     H_function, tsave_or_function = _initialize_model(H_function, tsave_or_function)
@@ -191,25 +237,33 @@ def mepropagator_model(
     r"""Instantiate mepropagator model.
 
     Here we instantiate the model that is called at each step of the optimization
-    iteration, returning a tuple of the result of calling `mepropagator` as well as the
-    Hamiltonian evaluated at the parameter values.
+    iteration, returning a tuple of the result of calling `mepropagator` as well 
+    as the Hamiltonian evaluated at the parameter values.
 
     Args:
         H_function _(callable)_: function specifying how to update the Hamiltonian
         tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
-            array of times passed to sesolve or a method specifying how to update
-            the times that are passed to sesolve
+            array of times passed to the solver or a method specifying how to update
+            the times that are passed to the solver
         exp_ops _(list of array-like)_: Operators to calculate expectation values of,
             in case some of the cost functions depend on the value of certain
             expectation values.
 
     Returns:
-        _(MEPropagateModel)_: Model that when called with the parameters we optimize
-            over as argument returns the results of `mepropagator` as well as the updated
-            Hamiltonian
+        _(MEPropagatorModel)_: Model that when called with the parameters we optimize
+            over as argument returns the results of `mepropagator` as well as the
+            updated Hamiltonian
 
     Examples:
-        
+        Instantiating a `MEPropagatorModel` is quite similar to instantiating an
+        `SEPropagatorModel`, with the difference being that we need to supply jump
+        operators. Continuing the last example from `sepropagator_model`
+        ```python
+        jump_ops = [0.03 * dq.sigmax()]
+        mep_Kerr_model = ql.mepropagator_model(
+            update_H_topt, jump_ops, update_tsave_topt
+        )
+        ```
 
     """  # noqa E501
     H_function, tsave_or_function = _initialize_model(H_function, tsave_or_function)
@@ -305,8 +359,8 @@ class MESolveModel(Model):
 class SEPropagatorModel(Model):
     r"""Model for Schrödinger-equation propagator optimization.
 
-    When called with the parameters we optimize over returns the results of `sepropagate`
-    as well as the updated Hamiltonian.
+    When called with the parameters we optimize over returns the results of
+    `sepropagate` as well as the updated Hamiltonian.
     """
 
     def __call__(
