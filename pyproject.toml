@@ -5,7 +5,7 @@ requires-python = ">=3.9"
 description = "Optimal control wrapper of dynamiqs."
 dependencies = [
     "numpy",
-    "matplotlib",
+    "matplotlib<3.10.0", # for breaking issues with version 3.10 https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/issues/2411
     "jax",
     "jaxlib",
     "jaxtyping",
