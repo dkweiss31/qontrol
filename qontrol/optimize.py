@@ -165,7 +165,7 @@ def optimize(
                     opt_options,
                 )
             # early termination
-            if not opt_options["ignore_termination"]:
+            if not opt_options['ignore_termination']:
                 termination_key = _terminate_early(
                     grads,
                     parameters,
@@ -192,7 +192,7 @@ def optimize(
             len(cost_values_over_epochs) - 1,
             opt_options,
         )
-    if not opt_options["ignore_termination"]:
+    if not opt_options['ignore_termination']:
         print(TERMINATION_MESSAGES[termination_key])
     print(
         f'optimization terminated after {epoch} epochs; \n'

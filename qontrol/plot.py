@@ -11,7 +11,7 @@ from .cost import Cost, SummedCost
 from .model import Model
 
 
-def _plot_controls_and_loss(  # noqa PLR0915
+def _plot_controls_and_loss(
     parameters: Array | dict,
     costs: Cost,
     model: Model,
