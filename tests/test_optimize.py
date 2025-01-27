@@ -65,7 +65,7 @@ def setup_Kerr_osc(nH=None):
 def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
     filepath = _filepath(tmp_path)
     H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc(nH)
-    optimizer_options = {'epochs': 4000, 'all_costs': True, 'plot': False}
+    optimizer_options = {'epochs': 600, 'all_costs': True, 'plot': False}
     dq_options = dq.Options(progress_meter=None)
     # only utilized if cost == "forbid"
     dim = H_func(init_drive_params).shape[-1]
@@ -99,7 +99,7 @@ def test_costs(infid_cost, grape_type, cost, nH, tmp_path):
     else:
         pass
     costs *= 1.0  # test multiplying Costs or SummedCosts
-    optimizer = optax.adam(0.0001, b1=0.99, b2=0.99)
+    optimizer = optax.adam(0.001, b1=0.99, b2=0.99)
     opt_params = optimize(
         init_drive_params,
         costs,

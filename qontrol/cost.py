@@ -320,8 +320,10 @@ class IncoherentInfidelity(Cost):
         overlaps = self.target_states.dag() @ result.final_state
         if not isket(result.final_state):
             overlaps = overlaps.trace()
+        else:
+            overlaps = overlaps * jnp.conj(overlaps)
         # square before summing
-        infid = 1 - jnp.mean(jnp.abs(overlaps * jnp.conj(overlaps)))
+        infid = 1 - jnp.mean(jnp.abs(overlaps))
         cost = self.cost_multiplier * infid
         return ((cost, cost < self.target_cost),)
 
@@ -345,10 +347,18 @@ class CoherentInfidelity(Cost):
         overlaps = self.target_states.dag() @ result.final_state
         if not isket(result.final_state):
             overlaps = overlaps.trace()
-        # average over states before squaring
-        overlaps_avg = jnp.mean(jnp.squeeze(overlaps), axis=-1)
-        # average over any remaining batch dimensions
-        infid = 1 - jnp.mean(jnp.abs(overlaps_avg * jnp.conj(overlaps_avg)))
+            # average over states before squaring: for density matrices this doesn't do
+            # anything different from the incoherent definition of the infidelity, since
+            # the trace is always real and positive. Included here only for
+            # completeness.
+            overlaps_avg = jnp.mean(jnp.squeeze(overlaps), axis=-1)
+            fid = jnp.mean(jnp.abs(overlaps_avg))
+        else:
+            # average over states before squaring
+            overlaps_avg = jnp.mean(jnp.squeeze(overlaps), axis=-1)
+            # average over any remaining batch dimensions
+            fid = jnp.mean(jnp.abs(overlaps_avg * jnp.conj(overlaps_avg)))
+        infid = 1 - fid
         cost = self.cost_multiplier * infid
         return ((cost, cost < self.target_cost),)
 
