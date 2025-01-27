@@ -15,7 +15,7 @@ dependencies = [
     "equinox",
     "ipython",
     "optax",
-    "dynamiqs>0.3.0", # version supporting QArray
+    "dynamiqs>=0.3.0", # version supporting QArray
 ]
 
 [build-system]
