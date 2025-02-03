@@ -312,9 +312,7 @@ class Cost(eqx.Module):
 
     def __mul__(self, other: float) -> Cost:
         if not isinstance(other, float):
-            raise TypeError(
-                'Only scalar multiplication of cost functions is supported'
-            )
+            raise TypeError('Only scalar multiplication of cost functions is supported')
         return eqx.tree_at(
             lambda x: x.cost_multiplier, self, self.cost_multiplier * other
         )
