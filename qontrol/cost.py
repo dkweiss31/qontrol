@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
 from dynamiqs import asqarray, isket, QArray, QArrayLike, TimeQArray
-from dynamiqs.result import SolveResult
+from dynamiqs.result import PropagatorResult, SolveResult
 from dynamiqs.time_qarray import SummedTimeQArray
 from jax import Array, vmap
 
@@ -17,7 +17,7 @@ def incoherent_infidelity(
 ) -> IncoherentInfidelity:
     r"""Instantiate the cost function for calculating infidelity incoherently.
 
-    This infidelity is defined as
+    This fidelity is defined as
     $$
         F_{\rm incoherent} = \sum_{k}|\langle\psi_{t}^{k}|\psi_{i}^{k}(T)\rangle|^2,
     $$
@@ -26,7 +26,7 @@ def incoherent_infidelity(
 
     Args:
         target_states _(qarray_like of shape (s, n, 1) or (s, n, n))_: target states for
-            the initial states passed to `grape`. If performing master-equation
+            the initial states passed to `optimize`. If performing master-equation
             optimization, the target states should be passed as a list of density matrices.
         cost_multiplier _(float)_: Weight for this cost function relative to other cost
             functions.
@@ -49,7 +49,7 @@ def coherent_infidelity(
 ) -> CoherentInfidelity:
     r"""Instantiate the cost function for calculating infidelity coherently.
 
-    This infidelity is defined as
+    This fidelity is defined as
     $$
         F_{\rm coherent} = |\sum_{k}\langle\psi_{t}^{k}|\psi_{i}^{k}(T)\rangle|^2,
     $$
@@ -58,7 +58,7 @@ def coherent_infidelity(
 
     Args:
         target_states _(qarray_like of shape (s, n, 1) or (s, n, n))_: target states for
-            the initial states passed to `grape`. If performing master-equation
+            the initial states passed to `optimize`. If performing master-equation
             optimization, the target states should be passed as a list of density matrices.
         cost_multiplier _(float)_: Weight for this cost function relative to other cost
             functions.
@@ -72,6 +72,35 @@ def coherent_infidelity(
             and whether the infidelity is below the target value.
     """  # noqa: E501
     return CoherentInfidelity(cost_multiplier, target_cost, asqarray(target_states))
+
+
+def propagator_infidelity(
+    target_unitary: QArrayLike, cost_multiplier: float = 1.0, target_cost: float = 0.005
+) -> PropagatorInfidelity:
+    r"""Instantiate the cost function for calculating infidelity of a propagator.
+
+    This fidelity is defined as
+    $$
+        F_{\rm propagator} = \Tr(U_{t}^{\dagger} U/d)^2,
+    $$
+    where the propagator at the end of the pulse is $U$, the dimension of the system is
+    $d$ and the target unitary $U_{t}$.
+
+    Args:
+        target_unitary _(qarray_like of shape (n, n))_: target unitary for
+            the initial states passed to `optimize`.
+        cost_multiplier _(float)_: Weight for this cost function relative to other cost
+            functions.
+        target_cost _(float)_: Target value for this cost function. If options.all_costs
+            is True, the optimization terminates early if all cost functions fall below
+            their target values. If options.all_costs is False, the optimization
+            terminates if only one cost function falls below its target value.
+
+    Returns:
+        _(PropagatorInfidelity)_: Callable object that returns the propagator infidelity
+            and whether the infidelity is below the target value.
+    """
+    return PropagatorInfidelity(cost_multiplier, target_cost, asqarray(target_unitary))
 
 
 def forbidden_states(
@@ -268,6 +297,9 @@ def custom_cost(
 
 
 class Cost(eqx.Module):
+    cost_multiplier: float
+    target_cost: float
+
     def __call__(
         self, result: SolveResult, H: TimeQArray, parameters: dict | Array
     ) -> Array:
@@ -279,7 +311,13 @@ class Cost(eqx.Module):
         raise NotImplementedError
 
     def __mul__(self, other: float) -> Cost:
-        pass
+        if not isinstance(other, float):
+            raise TypeError(
+                'Only scalar multiplication of cost functions is supported'
+            )
+        return eqx.tree_at(
+            lambda x: x.cost_multiplier, self, self.cost_multiplier * other
+        )
 
     def __rmul__(self, other: float) -> Cost:
         return self * other
@@ -288,7 +326,7 @@ class Cost(eqx.Module):
         return type(self).__name__
 
 
-class SummedCost(Cost):
+class SummedCost(eqx.Module):
     costs: list[Cost]
 
     def __call__(
@@ -307,8 +345,6 @@ class SummedCost(Cost):
 
 
 class IncoherentInfidelity(Cost):
-    cost_multiplier: float
-    target_cost: float
     target_states: QArray
 
     def __call__(
@@ -327,15 +363,8 @@ class IncoherentInfidelity(Cost):
         cost = self.cost_multiplier * infid
         return ((cost, cost < self.target_cost),)
 
-    def __mul__(self, other: float) -> IncoherentInfidelity:
-        return IncoherentInfidelity(
-            other * self.cost_multiplier, self.target_cost, self.target_states
-        )
-
 
 class CoherentInfidelity(Cost):
-    cost_multiplier: float
-    target_cost: float
     target_states: QArray
 
     def __call__(
@@ -362,15 +391,24 @@ class CoherentInfidelity(Cost):
         cost = self.cost_multiplier * infid
         return ((cost, cost < self.target_cost),)
 
-    def __mul__(self, other: float) -> CoherentInfidelity:
-        return CoherentInfidelity(
-            other * self.cost_multiplier, self.target_cost, self.target_states
-        )
+
+class PropagatorInfidelity(Cost):
+    target_unitary: QArray
+
+    def __call__(
+        self,
+        result: PropagatorResult,
+        H: TimeQArray,  # noqa ARG002
+        parameters: dict | Array,  # noqa ARG002
+    ) -> tuple[tuple[Array, Array]]:
+        dim = jnp.prod(*result.final_propagator.dims)
+        overlap = (self.target_unitary.dag() @ result.final_propagator).trace() / dim
+        infid = 1 - jnp.mean(jnp.abs(overlap) ** 2)
+        cost = self.cost_multiplier * infid
+        return ((cost, cost < self.target_cost),)
 
 
 class ForbiddenStates(Cost):
-    cost_multiplier: float
-    target_cost: float
     forbidden_states: QArray
 
     def __call__(
@@ -389,16 +427,8 @@ class ForbiddenStates(Cost):
         cost = self.cost_multiplier * forbidden_pops
         return ((cost, cost < self.target_cost),)
 
-    def __mul__(self, other: float) -> ForbiddenStates:
-        return ForbiddenStates(
-            other * self.cost_multiplier, self.target_cost, self.forbidden_states
-        )
-
 
 class ControlCost(Cost):
-    cost_multiplier: float
-    target_cost: float
-
     def evaluate_controls(
         self, result: SolveResult, H: TimeQArray, func: callable
     ) -> Array:
@@ -418,9 +448,6 @@ class ControlCost(Cost):
 
         return self.cost_multiplier * control_val
 
-    def __mul__(self, other: float) -> ControlCost:
-        return ControlCost(other * self.cost_multiplier, self.target_cost)
-
 
 class ControlCostNorm(ControlCost):
     threshold: float
@@ -438,11 +465,6 @@ class ControlCostNorm(ControlCost):
         )
         return ((cost, cost < self.target_cost),)
 
-    def __mul__(self, other: float) -> ControlCostNorm:
-        return ControlCostNorm(
-            other * self.cost_multiplier, self.target_cost, self.threshold
-        )
-
 
 class ControlCostArea(ControlCost):
     def __call__(
@@ -453,9 +475,6 @@ class ControlCostArea(ControlCost):
     ) -> tuple[tuple[Array, Array]]:
         cost = jnp.abs(self.evaluate_controls(result, H, lambda x: x))
         return ((cost, cost < self.target_cost),)
-
-    def __mul__(self, other: float) -> ControlCostArea:
-        return ControlCostArea(other * self.cost_multiplier, self.target_cost)
 
 
 class CustomControlCost(ControlCost):
@@ -470,15 +489,8 @@ class CustomControlCost(ControlCost):
         cost = jnp.abs(self.evaluate_controls(result, H, self.cost_fun))
         return ((cost, cost < self.target_cost),)
 
-    def __mul__(self, other: float) -> CustomControlCost:
-        return CustomControlCost(
-            other * self.cost_multiplier, self.target_cost, self.cost_fun
-        )
-
 
 class CustomCost(Cost):
-    cost_multiplier: float
-    target_cost: float
     cost_fun: callable
 
     def __call__(
@@ -486,6 +498,3 @@ class CustomCost(Cost):
     ) -> tuple[tuple[Array, Array]]:
         cost = self.cost_fun(result, H, parameters)
         return ((cost, cost < self.target_cost),)
-
-    def __mul__(self, other: float) -> CustomCost:
-        return CustomCost(other * self.cost_multiplier, self.target_cost, self.cost_fun)

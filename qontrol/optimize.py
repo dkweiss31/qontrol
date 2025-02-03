@@ -218,7 +218,8 @@ def loss(
     cost_values, terminate = zip(*costs(result, H, parameters))
     total_cost = jax.tree.reduce(jnp.add, cost_values)
     total_cost = jnp.log(jnp.sum(jnp.asarray(total_cost)))
-    return total_cost, (total_cost, cost_values, terminate, result.expects)
+    expects = result.expects if hasattr(result, 'expects') else None
+    return total_cost, (total_cost, cost_values, terminate, expects)
 
 
 def _terminate_early(
