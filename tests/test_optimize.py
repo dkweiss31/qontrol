@@ -54,7 +54,7 @@ def setup_Kerr_osc(nH=None):
     def H_func(drive_params_dict: dict) -> Array:
         drive_params = drive_params_dict['dp']
         H = H0
-        for H1, drive_param in zip(H1s, drive_params):
+        for H1, drive_param in zip(H1s, drive_params, strict=True):
             drive_spline = _drive_spline(drive_param)
             H += dq.modulated(drive_spline.evaluate, H1)
         return H
@@ -114,7 +114,7 @@ def test_costs(infid_cost, opt_type, cost, nH, tmp_path):
         dq_options=dq_options,
     )
     opt_result, opt_H = model(opt_params, Tsit5(), None, dq_options)
-    cost_values, terminate = zip(*costs(opt_result, opt_H, opt_params))
+    cost_values, terminate = zip(*costs(opt_result, opt_H, opt_params), strict=True)
     assert all(terminate)
 
 
@@ -137,7 +137,7 @@ def test_reinitialize(tmp_path):
     )
     data_dict, _ = extract_info_from_h5(filepath)
     opt_result, opt_H = model(opt_params, Tsit5(), None, dq_options)
-    cost_values, terminate = zip(*costs(opt_result, opt_H, opt_params))
+    cost_values, terminate = zip(*costs(opt_result, opt_H, opt_params), strict=True)
     assert all(terminate)
 
 
