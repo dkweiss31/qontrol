@@ -188,7 +188,7 @@ def sepropagator_model(
         H1s = [dq.sigmax(), dq.sigmay()]
 
 
-        def H_pwc(values: Array) -> dq.TimeArray:
+        def H_pwc(values: Array) -> dq.TimeQArray:
             H = dq.sigmaz()
             for idx, _H1 in enumerate(H1s):
                 H += dq.pwc(tsave, values[idx], _H1)
@@ -208,7 +208,7 @@ def sepropagator_model(
         }
 
 
-        def H_func_topt(t: float, drive_params_dict: dict) -> dq.TimeArray:
+        def H_func_topt(t: float, drive_params_dict: dict) -> dq.TimeQArray:
             drive_params = drive_params_dict['dp']
             new_tsave = jnp.linspace(0.0, drive_params_dict['t'], len(tsave))
             drive_spline = _drive_spline(drive_params, envelope, new_tsave)
@@ -217,7 +217,7 @@ def sepropagator_model(
             return H0 + drive_Hs
 
 
-        def update_H_topt(drive_params_dict: dict) -> dq.TimeArray:
+        def update_H_topt(drive_params_dict: dict) -> dq.TimeQArray:
             new_H = jtu.Partial(H_func_topt, drive_params_dict=drive_params_dict)
             return dq.timecallable(new_H)
 
