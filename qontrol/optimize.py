@@ -139,7 +139,9 @@ def optimize(
             if opt_options['verbose']:
                 print(f'epoch: {epoch}, elapsed_time: {elapsed_time} s; ')
                 if isinstance(costs, SummedCost):
-                    for _cost, _cost_value in zip(costs.costs, cost_values):
+                    for _cost, _cost_value in zip(
+                        costs.costs, cost_values, strict=True
+                    ):
                         print(_cost, ' = ', _cost_value, '; ', end=' ')
                     print('\n')
                 else:
@@ -215,10 +217,11 @@ def loss(
     dq_options: dq.Options,
 ) -> [float, Array]:
     result, H = model(parameters, solver, gradient, dq_options)
-    cost_values, terminate = zip(*costs(result, H, parameters))
+    cost_values, terminate = zip(*costs(result, H, parameters), strict=True)
     total_cost = jax.tree.reduce(jnp.add, cost_values)
     total_cost = jnp.log(jnp.sum(jnp.asarray(total_cost)))
-    return total_cost, (total_cost, cost_values, terminate, result.expects)
+    expects = result.expects if hasattr(result, 'expects') else None
+    return total_cost, (total_cost, cost_values, terminate, expects)
 
 
 def _terminate_early(
@@ -239,7 +242,7 @@ def _terminate_early(
     dg = 0.0
     if isinstance(parameters, dict):
         for (_key_new, val_new), (_key_old, val_old) in zip(
-            parameters.items(), previous_parameters.items()
+            parameters.items(), previous_parameters.items(), strict=True
         ):
             dx += _norm(val_new - val_old)
         for _, grad_val in grads.items():

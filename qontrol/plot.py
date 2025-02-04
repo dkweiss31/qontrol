@@ -33,7 +33,9 @@ def _plot_controls_and_loss(
     epoch_range = np.arange(epoch + 1)
     cost_values_over_epochs = np.asarray(cost_values_over_epochs).T
     if isinstance(costs, SummedCost):
-        for _cost, _cost_value in zip(costs.costs, cost_values_over_epochs):
+        for _cost, _cost_value in zip(
+            costs.costs, cost_values_over_epochs, strict=True
+        ):
             ax.plot(epoch_range, _cost_value, label=str(_cost))
         ax.plot(
             epoch_range, np.sum(cost_values_over_epochs, axis=0), label='total cost'
