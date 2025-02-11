@@ -3,23 +3,22 @@ from __future__ import annotations
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
-from dynamiqs.time_array import SummedTimeArray, TimeArray, ConstantTimeArray
+from dynamiqs.time_qarray import SummedTimeQArray, TimeQArray, ConstantTimeArray
 from IPython.display import clear_output
 from jax import Array
 
 from .cost import Cost, SummedCost
 from .model import Model
-from .options import OptimizerOptions
 
 
-def _plot_controls_and_loss(  # noqa PLR0915
+def _plot_controls_and_loss(
     parameters: Array | dict,
     costs: Cost,
     model: Model,
     expects: Array | None,
     cost_values_over_epochs: list,
     epoch: int,
-    options: OptimizerOptions,
+    options: dict,
 ) -> None:
     clear_output(wait=True)
     
@@ -39,7 +38,9 @@ def _plot_controls_and_loss(  # noqa PLR0915
     epoch_range = np.arange(len(cost_values_over_epochs))
     cost_values_over_epochs = np.asarray(cost_values_over_epochs).T
     if isinstance(costs, SummedCost):
-        for _cost, _cost_value in zip(costs.costs, cost_values_over_epochs):
+        for _cost, _cost_value in zip(
+            costs.costs, cost_values_over_epochs, strict=True
+        ):
             ax.plot(epoch_range, _cost_value, label=str(_cost))
         ax.plot(epoch_range, np.sum(cost_values_over_epochs, axis=0), label='total cost')
     else:
@@ -56,19 +57,22 @@ def _plot_controls_and_loss(  # noqa PLR0915
     tsave = model.tsave_function(parameters)
     finer_tsave = np.linspace(0.0, tsave[-1], len(tsave) * 10)
 
-    def evaluate_at_tsave(_H):
+    def evaluate_at_tsave(_H: TimeQArray) -> np.ndarray:
         if hasattr(_H, 'prefactor'):
             return jax.vmap(_H.prefactor)(finer_tsave)
 
     controls = []
-    if isinstance(H, SummedTimeArray):
-        for _H in H.timearrays:
-            if not isinstance(_H, ConstantTimeArray):
-                controls.append(evaluate_at_tsave(_H))
+    if isinstance(H, SummedTimeQArray):
+        for _H in H.timeqarrays:
+            controls.append(evaluate_at_tsave(_H))
     else:
         controls.append(evaluate_at_tsave(H))
+    if options['H_labels']:
+        H_labels = options['H_labels']
+    else:
+        H_labels = [f'$H_{idx}$' for idx in range(len(controls))]
     for idx, control in enumerate(controls):
-        ax.plot(finer_tsave, np.real(control) / 2 / np.pi, label=f'$H_{idx+1}$')
+        ax.plot(finer_tsave, np.real(control) / 2 / np.pi, label=H_labels[idx])
     ax.legend(loc='lower right', framealpha=0.0)
     ax.set_ylabel('pulse amplitude [GHz]')
     ax.set_xlabel('time [ns]')

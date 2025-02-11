@@ -8,16 +8,18 @@ from .cost import (
     custom_cost as custom_cost,
     forbidden_states as forbidden_states,
     incoherent_infidelity as incoherent_infidelity,
+    propagator_infidelity as propagator_infidelity,
 )
 from .model import (
+    mepropagator_model as mepropagator_model,
     mesolve_model as mesolve_model,
     MESolveModel as MESolveModel,
     Model as Model,
+    sepropagator_model as sepropagator_model,
     sesolve_model as sesolve_model,
     SESolveModel as SESolveModel,
 )
 from .optimize import optimize as optimize
-from .options import OptimizerOptions as OptimizerOptions
 from .utils.fidelity_utils import all_cardinal_states as all_cardinal_states
 from .utils.file_io import (
     append_to_h5 as append_to_h5,

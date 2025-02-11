@@ -2,23 +2,18 @@ from __future__ import annotations
 
 import dynamiqs as dq
 import equinox as eqx
-import jax.numpy as jnp
 import jax.tree_util as jtu
-from dynamiqs import TimeArray
-from dynamiqs._utils import cdtype
+from dynamiqs import QArrayLike, TimeQArray
 from dynamiqs.gradient import Gradient
-from dynamiqs.integrators._utils import _astimearray
 from dynamiqs.result import Result
 from dynamiqs.solver import Solver, Tsit5
 from jax import Array
 from jaxtyping import ArrayLike
 
-from .options import OptimizerOptions
-
 
 def sesolve_model(
     H_function: callable,
-    psi0: ArrayLike,
+    psi0: QArrayLike,
     tsave_or_function: ArrayLike | callable,
     *,
     exp_ops: list[ArrayLike] | None = None,
@@ -31,7 +26,7 @@ def sesolve_model(
 
     Args:
         H_function _(callable)_: function specifying how to update the Hamiltonian
-        psi0 _(ArrayLike of shape (..., n, 1))_: Initial states.
+        psi0 _(QArrayLike of shape (..., n, 1))_: Initial states.
         tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
             array of times passed to sesolve or a method specifying how to update
             the times that are passed to sesolve
@@ -53,7 +48,7 @@ def sesolve_model(
         H1s = [dq.sigmax(), dq.sigmay()]
 
 
-        def H_pwc(values: Array) -> dq.TimeArray:
+        def H_pwc(values: Array) -> dq.TimeQArray:
             H = dq.sigmaz()
             for idx, _H1 in enumerate(H1s):
                 H += dq.pwc(tsave, values[idx], _H1)
@@ -74,7 +69,7 @@ def sesolve_model(
         }
 
 
-        def H_func_topt(t: float, drive_params_dict: dict) -> dq.TimeArray:
+        def H_func_topt(t: float, drive_params_dict: dict) -> dq.TimeQArray:
             drive_params = drive_params_dict['dp']
             new_tsave = jnp.linspace(0.0, drive_params_dict['t'], len(tsave))
             drive_spline = _drive_spline(drive_params, envelope, new_tsave)
@@ -83,7 +78,7 @@ def sesolve_model(
             return H0 + drive_Hs
 
 
-        def update_H_topt(drive_params_dict: dict) -> dq.TimeArray:
+        def update_H_topt(drive_params_dict: dict) -> dq.TimeQArray:
             new_H = jtu.Partial(H_func_topt, drive_params_dict=drive_params_dict)
             return dq.timecallable(new_H)
 
@@ -97,16 +92,16 @@ def sesolve_model(
         See for example [this tutorial](../examples/Kerr_oscillator#time-optimal-control).
 
     """  # noqa E501
-    H_function, psi0, tsave_or_function, exp_ops = _initialize_model(
-        H_function, psi0, tsave_or_function, exp_ops
+    H_function, tsave_or_function = _initialize_model(H_function, tsave_or_function)
+    return SESolveModel(
+        H_function, tsave_or_function, exp_ops=exp_ops, initial_states=psi0
     )
-    return SESolveModel(H_function, psi0, tsave_or_function, exp_ops)
 
 
 def mesolve_model(
     H_function: callable,
-    jump_ops: list[ArrayLike],
-    psi0: ArrayLike,
+    jump_ops: list[QArrayLike | TimeQArray],
+    rho0: QArrayLike,
     tsave_or_function: ArrayLike | callable,
     *,
     exp_ops: list[ArrayLike] | None = None,
@@ -119,9 +114,9 @@ def mesolve_model(
 
     Args:
         H_function _(callable)_: function specifying how to update the Hamiltonian
-        jump_ops _(list of array-like or time-array, each of shape (...Lk, n, n))_:
+        jump_ops _(list of qarray-like or time-qarray, each of shape (...Lk, n, n))_:
             List of jump operators.
-        psi0 _(ArrayLike of shape (..., n, 1))_: Initial states.
+        rho0 _(QArrayLike of shape (..., n, n))_: Initial density matrices.
         tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
             array of times passed to sesolve or a method specifying how to update
             the times that are passed to sesolve
@@ -149,32 +144,156 @@ def mesolve_model(
         See [this tutorial](../examples/Kerr_oscillator#master-equation-optimization)
         for example
     """
-    H_function, psi0, tsave_function, exp_ops = _initialize_model(
-        H_function, psi0, tsave_or_function, exp_ops
+    H_function, tsave_function = _initialize_model(H_function, tsave_or_function)
+    return MESolveModel(
+        H_function,
+        tsave_function,
+        exp_ops=exp_ops,
+        initial_states=rho0,
+        jump_ops=jump_ops,
     )
-    jump_ops = [_astimearray(L) for L in jump_ops]
-    return MESolveModel(H_function, psi0, tsave_function, exp_ops, jump_ops)
+
+
+def sepropagator_model(
+    H_function: callable,
+    tsave_or_function: ArrayLike | callable,
+    *,
+    exp_ops: list[ArrayLike] | None = None,
+) -> SEPropagatorModel:
+    r"""Instantiate sepropagator model.
+
+    Here we instantiate the model that is called at each step of the optimization
+    iteration, returning a tuple of the result of calling `sepropagator` as well
+    as the Hamiltonian evaluated at the parameter values.
+
+    Args:
+        H_function _(callable)_: function specifying how to update the Hamiltonian
+        tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
+            array of times passed to the solver or a method specifying how to update
+            the times that are passed to the solver
+        exp_ops _(list of array-like)_: Operators to calculate expectation values of,
+            in case some of the cost functions depend on the value of certain
+            expectation values.
+
+    Returns:
+        _(SEPropagatorModel)_: Model that when called with the parameters we optimize
+            over as argument returns the results of `sepropagator` as well as the
+            updated Hamiltonian
+
+    Examples:
+        In this simple example the parameters are the amplitudes of piecewise-constant
+        controls
+        ```python
+        tsave = jnp.linspace(0.0, 11.0, 10)
+        H1s = [dq.sigmax(), dq.sigmay()]
+
+
+        def H_pwc(values: Array) -> dq.TimeQArray:
+            H = dq.sigmaz()
+            for idx, _H1 in enumerate(H1s):
+                H += dq.pwc(tsave, values[idx], _H1)
+            return H
+
+
+        sepropagator_model = ql.sepropagator_model(H_pwc, tsave)
+        ```
+
+        In more complex cases, we can imagine that the optimized parameters
+        are the control points fed into a spline, and additionally the control
+        times themselves are optimized.
+        ```python
+        init_drive_params_topt = {
+            'dp': -0.001 * jnp.ones((len(H1s), len(tsave))),
+            't': tsave[-1],
+        }
+
+
+        def H_func_topt(t: float, drive_params_dict: dict) -> dq.TimeQArray:
+            drive_params = drive_params_dict['dp']
+            new_tsave = jnp.linspace(0.0, drive_params_dict['t'], len(tsave))
+            drive_spline = _drive_spline(drive_params, envelope, new_tsave)
+            drive_amps = drive_spline.evaluate(t)
+            drive_Hs = jnp.einsum('d,dij->ij', drive_amps, H1s)
+            return H0 + drive_Hs
+
+
+        def update_H_topt(drive_params_dict: dict) -> dq.TimeQArray:
+            new_H = jtu.Partial(H_func_topt, drive_params_dict=drive_params_dict)
+            return dq.timecallable(new_H)
+
+
+        def update_tsave_topt(drive_params_dict: dict) -> jax.Array:
+            return jnp.linspace(0.0, drive_params_dict['t'], len(tsave))
+
+
+        sep_t_opt_Kerr_model = ql.sepropagator_model(update_H_topt, update_tsave_topt)
+        ```
+
+    """
+    H_function, tsave_or_function = _initialize_model(H_function, tsave_or_function)
+    return SEPropagatorModel(H_function, tsave_or_function, exp_ops=exp_ops)
+
+
+def mepropagator_model(
+    H_function: callable,
+    jump_ops: list[QArrayLike | TimeQArray],
+    tsave_or_function: ArrayLike | callable,
+    *,
+    exp_ops: list[ArrayLike] | None = None,
+) -> MEPropagatorModel:
+    r"""Instantiate mepropagator model.
+
+    Here we instantiate the model that is called at each step of the optimization
+    iteration, returning a tuple of the result of calling `mepropagator` as well
+    as the Hamiltonian evaluated at the parameter values.
+
+    Args:
+        H_function _(callable)_: function specifying how to update the Hamiltonian
+        jump_ops _(list of qarray-like or time-qarray, each of shape (...Lk, n, n))_:
+            List of jump operators.
+        tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
+            array of times passed to the solver or a method specifying how to update
+            the times that are passed to the solver
+        exp_ops _(list of array-like)_: Operators to calculate expectation values of,
+            in case some of the cost functions depend on the value of certain
+            expectation values.
+
+    Returns:
+        _(MEPropagatorModel)_: Model that when called with the parameters we optimize
+            over as argument returns the results of `mepropagator` as well as the
+            updated Hamiltonian
+
+    Examples:
+        Instantiating a `MEPropagatorModel` is quite similar to instantiating an
+        `SEPropagatorModel`, with the difference being that we need to supply jump
+        operators. Continuing the last example from `sepropagator_model`
+        ```python
+        jump_ops = [0.03 * dq.sigmax()]
+        mep_Kerr_model = ql.mepropagator_model(
+            update_H_topt, jump_ops, update_tsave_topt
+        )
+        ```
+
+    """
+    H_function, tsave_or_function = _initialize_model(H_function, tsave_or_function)
+    return MEPropagatorModel(
+        H_function, tsave_or_function, exp_ops=exp_ops, jump_ops=jump_ops
+    )
 
 
 def _initialize_model(
-    H_function: callable,
-    psi0: ArrayLike,
-    tsave_or_function: ArrayLike | callable,
-    exp_ops: list[ArrayLike] | None,
-) -> [callable, Array, callable, Array]:
+    H_function: callable, tsave_or_function: ArrayLike | callable
+) -> [callable, callable]:
     H_function = jtu.Partial(H_function)
-    psi0 = jnp.asarray(psi0, dtype=cdtype())
     if callable(tsave_or_function):
         tsave_function = jtu.Partial(tsave_or_function)
     else:
         tsave_function = jtu.Partial(lambda _: tsave_or_function)
-    exp_ops = jnp.asarray(exp_ops, dtype=cdtype()) if exp_ops is not None else None
-    return H_function, psi0, tsave_function, exp_ops
+    return H_function, tsave_function
 
 
 class Model(eqx.Module):
     H_function: callable
-    initial_states: Array
     tsave_function: callable
     exp_ops: Array | None
 
@@ -183,8 +302,8 @@ class Model(eqx.Module):
         parameters: Array | dict,
         solver: Solver = Tsit5(),  # noqa B008
         gradient: Gradient | None = None,
-        options: OptimizerOptions = OptimizerOptions(),  # noqa B008
-    ) -> tuple[Result, TimeArray]:
+        options: dq.Options = dq.Options(),  # noqa B008
+    ) -> tuple[Result, TimeQArray]:
         raise NotImplementedError
 
 
@@ -195,13 +314,15 @@ class SESolveModel(Model):
     as well as the updated Hamiltonian.
     """
 
+    initial_states: QArrayLike
+
     def __call__(
         self,
         parameters: Array | dict,
         solver: Solver = Tsit5(),  # noqa B008
         gradient: Gradient | None = None,
-        options: OptimizerOptions = OptimizerOptions(),  # noqa B008
-    ) -> tuple[Result, TimeArray]:
+        options: dq.Options = dq.Options(),  # noqa B008
+    ) -> tuple[Result, TimeQArray]:
         new_H = self.H_function(parameters)
         new_tsave = self.tsave_function(parameters)
         result = dq.sesolve(
@@ -223,15 +344,16 @@ class MESolveModel(Model):
     as well as the updated Hamiltonian.
     """
 
-    jump_ops: list[TimeArray]
+    initial_states: QArrayLike
+    jump_ops: list[QArrayLike | TimeQArray]
 
     def __call__(
         self,
         parameters: Array | dict,
         solver: Solver = Tsit5(),  # noqa B008
         gradient: Gradient | None = None,
-        options: OptimizerOptions = OptimizerOptions(),  # noqa B008
-    ) -> tuple[Result, TimeArray]:
+        options: dq.Options = dq.Options(),  # noqa B008
+    ) -> tuple[Result, TimeQArray]:
         new_H = self.H_function(parameters)
         new_tsave = self.tsave_function(parameters)
         result = dq.mesolve(
@@ -240,6 +362,57 @@ class MESolveModel(Model):
             self.initial_states,
             new_tsave,
             exp_ops=self.exp_ops,
+            solver=solver,
+            gradient=gradient,
+            options=options,
+        )
+        return result, new_H
+
+
+class SEPropagatorModel(Model):
+    r"""Model for Schrödinger-equation propagator optimization.
+
+    When called with the parameters we optimize over returns the results of
+    `sepropagate` as well as the updated Hamiltonian.
+    """
+
+    def __call__(
+        self,
+        parameters: Array | dict,
+        solver: Solver = Tsit5(),  # noqa B008
+        gradient: Gradient | None = None,
+        options: dq.Options = dq.Options(),  # noqa B008
+    ) -> tuple[Result, TimeQArray]:
+        new_H = self.H_function(parameters)
+        new_tsave = self.tsave_function(parameters)
+        result = dq.sepropagator(
+            new_H, new_tsave, solver=solver, gradient=gradient, options=options
+        )
+        return result, new_H
+
+
+class MEPropagatorModel(Model):
+    r"""Model for Lindblad-master-equation propagator optimization.
+
+    When called with the parameters we optimize over returns the results of `mesolve`
+    as well as the updated Hamiltonian.
+    """
+
+    jump_ops: list[QArrayLike | TimeQArray]
+
+    def __call__(
+        self,
+        parameters: Array | dict,
+        solver: Solver = Tsit5(),  # noqa B008
+        gradient: Gradient | None = None,
+        options: dq.Options = dq.Options(),  # noqa B008
+    ) -> tuple[Result, TimeQArray]:
+        new_H = self.H_function(parameters)
+        new_tsave = self.tsave_function(parameters)
+        result = dq.mepropagator(
+            new_H,
+            self.jump_ops,
+            new_tsave,
             solver=solver,
             gradient=gradient,
             options=options,

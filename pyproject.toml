@@ -1,13 +1,13 @@
 [project]
 name = "qontrol"
-version = "0.1.0"
-requires-python = ">=3.9"
+version = "0.1.1"
+requires-python = ">=3.10"
 description = "Optimal control wrapper of dynamiqs."
 dependencies = [
     "numpy",
-    "matplotlib",
-    "jax<=0.4.31",
-    "jaxlib<=0.4.31",
+    "matplotlib<3.10.0", # for breaking issues with version 3.10 https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/issues/2411
+    "jax",
+    "jaxlib",
     "jaxtyping",
     "jupyter",
     "h5py",
@@ -15,7 +15,7 @@ dependencies = [
     "equinox",
     "ipython",
     "optax",
-    "dynamiqs",
+    "dynamiqs>=0.3.0", # version supporting QArray
 ]
 
 [build-system]
@@ -28,7 +28,7 @@ dev = [
     "ruff",
     "codespell",
     "pygments",
-    "pytest>=7.0,<8.0",
+    "pytest",
     "pytest-xdist",
     "pymdown-extensions",
     "mkdocs",
@@ -64,15 +64,15 @@ select = [
 ]
 extend-select = ["D204", "D400", "D404", "D406", "D410"]
 ignore = [
-    "ANN101", "ANN003",
+    "ANN003",
     "C901",
     "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107", "D417",
     "E741",
     "INP001",
     "TRY003",
     "PLC0414",
-    "PLR0912", "PLR0913", "PLR2004",
-    "T201"
+    "PLR0912", "PLR0913", "PLR0915", "PLR2004",
+    "T201",
 ]
 
 [tool.ruff.lint.isort]
