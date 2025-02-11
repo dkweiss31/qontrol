@@ -3,7 +3,7 @@ from __future__ import annotations
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
-from dynamiqs.time_qarray import SummedTimeQArray, TimeQArray, ConstantTimeArray
+from dynamiqs.time_qarray import SummedTimeQArray, TimeQArray
 from IPython.display import clear_output
 from jax import Array
 
@@ -24,7 +24,7 @@ def _plot_controls_and_loss(
     
     # Calculate the number of rows needed
     ncols = 4
-    nrows = (len(options.which_states_plot) + ncols - 1) // ncols + 1  # This ensures rounding up
+    nrows = (len(options['which_states_plot']) + ncols - 1) // ncols + 1  # This ensures rounding up
     
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(18, 4 * nrows))
     fig.patch.set_alpha(0.1)
