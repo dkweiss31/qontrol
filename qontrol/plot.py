@@ -18,6 +18,7 @@ def _plot_controls_and_loss(  # noqa PLR0915
     model: Model,
     expects: Array | None,
     cost_values_over_epochs: list,
+    epoch: int,
     options: OptimizerOptions,
 ) -> None:
     clear_output(wait=True)

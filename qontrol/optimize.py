@@ -127,6 +127,7 @@ def optimize(
                     model,
                     expects,
                     cost_values_over_epochs,
+                    epoch,
                     options,
                 )
             # early termination
@@ -153,6 +154,7 @@ def optimize(
             model,
             expects,
             cost_values_over_epochs,
+            len(cost_values_over_epochs) - 1,
             options,
         )
     print(TERMINATION_MESSAGES[termination_key])
@@ -163,7 +165,7 @@ def optimize(
         f'max epoch time of {np.max(epoch_times[1:])} s; \n'
         f'min epoch time of {np.min(epoch_times[1:])} s'
     )
-    return parameters, costs, model, expects, cost_values_over_epochs, options
+    return parameters
 
 
 def loss(
