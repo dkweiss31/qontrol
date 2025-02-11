@@ -25,10 +25,13 @@ def _plot_controls_and_loss(
     # Calculate the number of rows needed
     ncols = 4
     nrows = (len(options['which_states_plot']) + ncols - 1) // ncols + 1  # This ensures rounding up
-    
+  
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(18, 4 * nrows))
     fig.patch.set_alpha(0.1)
 
+    # Adjust the spacing between rows
+    plt.subplots_adjust(hspace=0.5)  # Increase the hspace value to add more vertical space
+    
     # Flatten axs for easy iteration
     axs = axs.flatten()
 
@@ -92,7 +95,8 @@ def _plot_controls_and_loss(
     ax.legend(loc='lower right', framealpha=0.0)
     ax.set_xlabel('frequency [GHz]')
     ax.set_ylabel('fourier amplitude')
-    ax.set_xlim(0, options['freq_cutoff'])
+    if options['freq_cutoff'] is not None:
+        ax.set_xlim(options['freq_cutoff'][0], options['freq_cutoff'][1])
     ax.grid(True)
 
     # Plot expectation values
