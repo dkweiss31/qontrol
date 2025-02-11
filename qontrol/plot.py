@@ -55,11 +55,14 @@ def _plot_controls_and_loss(
     ax.set_facecolor('none')
     H = model.H_function(parameters)
     tsave = model.tsave_function(parameters)
+    # use a more discrete time to see steps if pwc, or the full
+    # pulse if fitting a spline, etc.
     finer_tsave = np.linspace(0.0, tsave[-1], len(tsave) * 10)
 
     def evaluate_at_tsave(_H: TimeQArray) -> np.ndarray:
         if hasattr(_H, 'prefactor'):
             return jax.vmap(_H.prefactor)(finer_tsave)
+        return np.zeros_like(finer_tsave)
 
     controls = []
     if isinstance(H, SummedTimeQArray):
@@ -89,14 +92,14 @@ def _plot_controls_and_loss(
     ax.legend(loc='lower right', framealpha=0.0)
     ax.set_xlabel('frequency [GHz]')
     ax.set_ylabel('fourier amplitude')
-    ax.set_xlim(0, options.freq_cutoff)
+    ax.set_xlim(0, options['freq_cutoff'])
     ax.grid(True)
 
     # Plot expectation values
     if expects is not None:
         expects = np.swapaxes(expects, axis1=-2, axis2=-3)
         handles, labels = [], []
-        for idx, state_idx in enumerate(options.which_states_plot):
+        for idx, state_idx in enumerate(options['which_states_plot']):
             row_num = (3 + idx) // ncols
             col_num = (3 + idx) % ncols
             ax = axs[row_num * ncols + col_num]
