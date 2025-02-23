@@ -1,7 +1,6 @@
-from jax.random import PRNGKey
 import dynamiqs as dq
 import qontrol as ql
-
+from jax.random import PRNGKey
 
 
 def test_symmetric_forbidden_states():
@@ -29,7 +28,7 @@ def test_ragged_forbidden_states():
 
 def test_mul():
     costs = [ql.incoherent_infidelity([dq.basis(2, 0)]),
-             ql.custom_cost(lambda r, H, p: 0.3, 1.0, 0.0)]
+             ql.custom_cost(lambda _r, _H, _p: 0.3, 1.0, 0.0)]
     for cost in costs:
-        cost = 2.0 * cost
-        assert cost.cost_multiplier == 2.0
+        new_cost = 2.0 * cost
+        assert new_cost.cost_multiplier == 2.0
