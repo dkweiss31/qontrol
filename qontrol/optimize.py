@@ -16,7 +16,7 @@ from optax import GradientTransformation, OptState, TransformInitFn
 
 from .cost import Cost, SummedCost
 from .model import Model
-from .plot import _plot_controls_and_loss
+from .plot import DefaultPlotter, Plotter
 from .utils.file_io import append_to_h5
 
 
@@ -37,8 +37,6 @@ default_options = {
     'epochs': 2000,
     'plot': True,
     'plot_period': 30,
-    'which_states_plot': (0,),
-    'H_labels': None,
     'xtol': 1e-8,
     'ftol': 1e-8,
     'gtol': 1e-8,
@@ -51,6 +49,7 @@ def optimize(
     model: Model,
     *,
     optimizer: GradientTransformation = optax.adam(0.0001, b1=0.99, b2=0.99),  # noqa: B008
+    plotter: Plotter = DefaultPlotter(),  # noqa: B008
     solver: Solver = Tsit5(),  # noqa: B008
     gradient: Gradient | None = None,
     dq_options: dq.Options = dq.Options(),  # noqa: B008
@@ -72,6 +71,7 @@ def optimize(
         model _(Model)_: Model that is called at each iteration step.
         optimizer _(optax.GradientTransformation)_: optax optimizer to use
             for gradient descent. Defaults to the Adam optimizer.
+        plotter _(Plotter)_: Plotter for monitoring the optimization.
         solver _(Solver)_: Solver passed to dynamiqs.
         gradient _()Gradient_: Gradient passed to dynamiqs.
         options _(dict)_: Options for grape optimization.
@@ -85,9 +85,6 @@ def optimize(
             plot _(bool)_: Whether to plot the results during the optimization (for the
                 epochs where results are plotted, necessarily suffer a time penalty).
             plot_period _(int)_: If plot is True, plot every plot_period.
-            which_states_plot _(tuple)_: Which states to plot if expectation values are
-                passed to the model. Defaults to (0, ), so just plot expectation values for
-                the zero indexed batch state
             xtol _(float)_: Defaults to 1e-8, terminate the optimization if the parameters
                 are not being updated
             ftol _(float)_: Defaults to 1e-8, terminate the optimization if the cost
@@ -157,14 +154,8 @@ def optimize(
                     data_dict['parameters'] = parameters
                 append_to_h5(filepath, data_dict, opt_options)
             if opt_options['plot'] and epoch % opt_options['plot_period'] == 0:
-                _plot_controls_and_loss(
-                    parameters,
-                    costs,
-                    model,
-                    expects,
-                    cost_values_over_epochs,
-                    epoch,
-                    opt_options,
+                plotter.update_plots(
+                    parameters, costs, model, expects, cost_values_over_epochs, epoch
                 )
             # early termination
             if not opt_options['ignore_termination']:
@@ -185,14 +176,13 @@ def optimize(
     except KeyboardInterrupt:
         pass
     if opt_options['plot']:
-        _plot_controls_and_loss(
+        plotter.update_plots(
             parameters,
             costs,
             model,
             expects,
             cost_values_over_epochs,
             len(cost_values_over_epochs) - 1,
-            opt_options,
         )
     if not opt_options['ignore_termination']:
         print(TERMINATION_MESSAGES[termination_key])
