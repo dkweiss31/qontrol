@@ -57,7 +57,7 @@ plugins:
             python:
                 options:
                     show_source: false
-                    show_if_no_docstring: true
+                    show_if_no_docstring: false
                     show_signature_annotations: true
                     members_order: source
                     heading_level: 4

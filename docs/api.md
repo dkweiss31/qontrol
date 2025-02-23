@@ -22,6 +22,12 @@ and classes that help to define an optimization routine (cost functions, file in
     options:
         show_source: false
 
+## Custom Plotting
+
+::: qontrol.plot
+    options:
+        show_source: false
+
 ## File utilities
 
 ::: qontrol.utils.file_io
