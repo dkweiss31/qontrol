@@ -496,5 +496,5 @@ class CustomCost(Cost):
     def __call__(
         self, result: SolveResult, H: TimeQArray, parameters: dict | Array
     ) -> tuple[tuple[Array, Array]]:
-        cost = self.cost_fun(result, H, parameters)
+        cost = self.cost_fun(result, H, parameters) * self.cost_multiplier
         return ((cost, cost < self.target_cost),)
