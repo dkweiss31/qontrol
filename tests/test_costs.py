@@ -8,7 +8,7 @@ def test_symmetric_forbidden_states():
     dim = 5
     n_states = 4
     n_forbid = 3
-    forbidden_states_qarray = dq.random.randket(
+    forbidden_states_qarray = dq.random.ket(
         PRNGKey(31), (n_states, n_forbid, dim, 1)
     )
     cost = ql.forbidden_states(forbidden_states_qarray)
@@ -19,8 +19,8 @@ def test_ragged_forbidden_states():
     dim = 5
     n_states = 4
     forbidden_states_qarray = [
-        dq.random.randket(PRNGKey(31), (2, dim, 1)),
-        dq.random.randket(PRNGKey(32), (1, dim, 1)),
+        dq.random.ket(PRNGKey(31), (2, dim, 1)),
+        dq.random.ket(PRNGKey(32), (1, dim, 1)),
         [],
         [],
     ]
