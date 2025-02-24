@@ -8,9 +8,7 @@ def test_symmetric_forbidden_states():
     dim = 5
     n_states = 4
     n_forbid = 3
-    forbidden_states_qarray = dq.random.ket(
-        PRNGKey(31), (n_states, n_forbid, dim, 1)
-    )
+    forbidden_states_qarray = dq.random.ket(PRNGKey(31), (n_states, n_forbid, dim, 1))
     cost = ql.forbidden_states(forbidden_states_qarray)
     assert cost.forbidden_states.shape == (n_states, 1, n_forbid, dim, 1)
 
