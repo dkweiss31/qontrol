@@ -6,7 +6,7 @@ import jax
 import matplotlib.pyplot as plt
 import numpy as np
 from dynamiqs.time_qarray import SummedTimeQArray, TimeQArray
-from IPython.display import clear_output
+from IPython.display import display, clear_output
 from jax import Array
 from matplotlib.pyplot import Axes
 
@@ -197,35 +197,55 @@ def custom_plotter(plotting_functions: list[Callable]) -> Plotter:
 
 
 class Plotter:
-    def __init__(self, plotting_functions: list[Callable]):
+    def __init__(self, plotting_functions: list):
         self.plotting_functions = plotting_functions
         self.n_plots = len(plotting_functions) + 1
-
+        self.fig = None
+        self.axes = None
+        self.display_handle = None
+        
+    def initialize_plot(self):
+        n_rows = np.ceil(self.n_plots / 4).astype(int)
+        self.fig, self.axes = plt.subplots(n_rows, 4, figsize=(16, n_rows * 4))
+        if n_rows == 1:
+            self.axes = self.axes[None]
+        self.fig.patch.set_alpha(0.1)
+        
     def update_plots(
         self,
-        parameters: Array | dict,
-        costs: Cost,
-        model: Model,
-        expects: Array | None,
+        parameters,
+        costs,
+        model,
+        expects,
         cost_values_over_epochs: list,
         epoch: int,
     ):
-        clear_output(wait=True)
+        # Initialize plot if not already done
+        if self.fig is None or self.axes is None:
+            self.initialize_plot()
+        else:
+            # Clear the previous content of axes without recreating the entire figure
+            for ax_row in self.axes:
+                for ax in ax_row:
+                    ax.clear()
+        
+        # Calculate n_rows for indexing
         n_rows = np.ceil(self.n_plots / 4).astype(int)
-        fig, axes = plt.subplots(n_rows, 4, figsize=(16, n_rows * 4))
-        if n_rows == 1:
-            axes = axes[None]
-        fig.patch.set_alpha(0.1)
-        axes[0, 0] = plot_costs(axes[0, 0], costs, epoch, cost_values_over_epochs)
+        
+        # Update the plots
+        plot_costs(self.axes[0, 0], costs, epoch, cost_values_over_epochs)
+        
         for plot_idx in range(self.n_plots - 1):
             row_idx, col_idx = np.unravel_index(1 + plot_idx, (n_rows, 4))
-            axes[row_idx, col_idx] = self.plotting_functions[plot_idx](
-                axes[row_idx, col_idx], expects, model, parameters
+            self.plotting_functions[plot_idx](
+                self.axes[row_idx, col_idx], expects, model, parameters
             )
+        
         plt.tight_layout()
-        plt.show()
-
-
+        
+        # Use clear_output with wait=True to prevent flashing
+        clear_output(wait=True)
+        display(self.fig)
 class DefaultPlotter(Plotter):
     def __init__(self):
         Plotter.__init__(self, [plot_fft, plot_controls, plot_expects])
