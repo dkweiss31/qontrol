@@ -301,7 +301,7 @@ class Cost(eqx.Module):
     target_cost: float
 
     def __call__(
-        self, result: SolveResult, H: TimeQArray, parameters: dict | Array
+        self, result: SolveResult, H: TimeQArray, parameters: Union[Dict, Array], *args
     ) -> Array:
         raise NotImplementedError
 
@@ -492,7 +492,7 @@ class CustomCost(Cost):
     cost_fun: callable
 
     def __call__(
-        self, result: SolveResult, H: TimeQArray, parameters: dict | Array
+        self, result: SolveResult, H: TimeQArray, parameters: dict | Array,  *args
     ) -> tuple[tuple[Array, Array]]:
-        cost = self.cost_fun(result, H, parameters)
+        cost = self.cost_fun(result, H, parameters, args)
         return ((cost, cost < self.target_cost),)

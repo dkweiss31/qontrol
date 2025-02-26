@@ -117,8 +117,9 @@ def optimize(
         _gradient: Gradient,
         _options: dq.Options,
     ) -> [Array, TransformInitFn, Array]:
+
         grads, aux = jax.grad(loss, has_aux=True)(
-            _parameters, _costs, _model, _solver, _gradient, _options
+            _parameters, _costs, _model, _solver, _gradient, _options,
         )
         updates, _opt_state = optimizer.update(grads, _opt_state)
         _parameters = optax.apply_updates(_parameters, updates)
@@ -129,6 +130,7 @@ def optimize(
     try:  # trick for catching keyboard interrupt
         for epoch in range(opt_options['epochs']):
             epoch_start_time = time.time()
+            parameters['phi1'] = random_phi1()
             parameters, grads, opt_state, aux = step(
                 parameters, costs, model, opt_state, solver, gradient, dq_options
             )
@@ -208,6 +210,32 @@ def optimize(
     return parameters
 
 
+def phase_constraints( final_state):
+    final_state = jnp.squeeze(final_state.to_jax())
+    angle = jnp.angle(final_state[0,0])
+    final_state = final_state/jnp.exp(1j*angle)
+    psi1 = jnp.angle(final_state[1,1])
+    psi2 = jnp.angle(final_state[2,3])
+    psi3 = jnp.angle(final_state[3,2])
+    phi1p = -(psi3 - psi2 - psi1)/2
+    phi2p = -(psi1 - psi3 - psi2)/2
+    theta1p = -(psi2 - psi3 - psi1)/2
+    return phi1p, phi2p, theta1p
+
+import jax.random as jrandom
+def random_phi1():
+    # Use the current time (in nanoseconds) as part of the seed
+    current_time = int(time.time() * 1e9)
+    # Create a random key using the current time
+    key = jrandom.PRNGKey(current_time)
+    
+    # Define the range of numbers from 0 to pi
+    phi1_values = jnp.linspace(0, jnp.pi, 5)
+    
+    # Randomly choose one value from these numbers
+    phi1 = jrandom.choice(key, phi1_values)
+    return phi1
+
 def loss(
     parameters: Array | dict,
     costs: Cost,
@@ -217,7 +245,16 @@ def loss(
     dq_options: dq.Options,
 ) -> [float, Array]:
     result, H = model(parameters, solver, gradient, dq_options)
-    cost_values, terminate = zip(*costs(result, H, parameters), strict=True)
+    final_state = result.final_state[0]
+    phi1p, phi2p, theta1p = phase_constraints(final_state)
+    phi1 = parameters['phi1']
+    # jax.debug.print("Extracted value: {value}", value=phi1)
+    dgamma = phi1 + phi1p
+    parameters['phase'] = parameters['phase'] + dgamma
+    result, H = model(parameters, solver, gradient, dq_options)
+    parameters['phase'] = parameters['phase'] - dgamma
+    cost_values, terminate = zip(*costs(result, H, parameters,phi1p,phi2p,theta1p,phi1), strict=True)
+    # cost_values, terminate = zip(*costs(result, H, parameters), strict=True)
     total_cost = jax.tree.reduce(jnp.add, cost_values)
     total_cost = jnp.log(jnp.sum(jnp.asarray(total_cost)))
     expects = result.expects if hasattr(result, 'expects') else None
