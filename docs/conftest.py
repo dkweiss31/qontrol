@@ -1,3 +1,5 @@
+import functools
+
 import diffrax
 import dynamiqs
 import jax
@@ -21,6 +23,8 @@ def sybil_setup(namespace):  # noqa ARG001
     namespace['np'] = np
     namespace['optax'] = optax
     namespace['ql'] = qontrol
+    namespace['mpl'] = matplotlib.pyplot
+    namespace['functools'] = functools
 
 
 @pytest.fixture(scope='session', autouse=True)

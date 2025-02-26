@@ -32,6 +32,29 @@ key = jax.random.PRNGKey(31)
 parameters = 2.0 * jax.random.uniform(key, (len(H1s), len(tsave) - 1)) - 1.0
 ```
 
+## How do I monitor custom quantities during optimization?
+
+We provide functionality for the user to plot whatever quantities they'd like to monitor during the course of the optimization. Simply define one or multiple functions with the signature `plotting_function(ax, expects, model, parameters)`, where `ax` is a `matplotlib.pyplot.Axes` object that is updated, `expects` contains the output of `dq.SolveResult.expects`, `model` has type `ql.Model` and `parameters` are the parameters being optimized. Let's imagine you are batching over multiple different frequency values and want a pulse that is robust to these frequency variations. You want to plot the expectation values of each trajectory, and want separate plots for two different initial states. 
+```python
+n_batch = 21
+
+def plot_states(ax, expects, model, parameters, which=0,):
+    ax.set_facecolor('none')
+    tsave = model.tsave_function(parameters)
+    for batch_idx in range(n_batch):
+        ax.plot(tsave, np.real(expects[batch_idx, which, 0]))
+    ax.set_xlabel('time [ns]')
+    ax.set_ylabel(f'population in $|1\\rangle$ for initial state $|{which}\\rangle$')
+    return ax
+
+plotter = ql.custom_plotter(
+    [ql.plot_controls,
+     functools.partial(plot_states, which=0),
+     functools.partial(plot_states, which=1)]
+)
+```
+See [this tutorial](../examples/qubit) for this sort of functionality in practice. 
+
 ## How do I access the saved information?
 
 If a `filepath` is passed to `optimize`, the parameters from each epoch are saved along with the individual values of each cost function and the total cost. This data can be extracted via (assuming the data has been saved in the file 'tmp.h5py')

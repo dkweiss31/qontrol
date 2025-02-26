@@ -151,7 +151,9 @@ def forbidden_states(
         for forbid_idx in range(num_forbid_per_state[state_idx])
     ]
     # add in a dimension for tsave that will be broadcast with the final states
-    forbid_array = jnp.zeros((num_states, 1, max_num_forbid, *state_shape))
+    forbid_array = jnp.zeros(
+        (num_states, 1, max_num_forbid, *state_shape), dtype=complex
+    )
     for state_idx, forbid_idx in arr_indices:
         forbidden_state = asqarray(
             forbidden_states_list[state_idx][forbid_idx]
@@ -494,5 +496,5 @@ class CustomCost(Cost):
     def __call__(
         self, result: SolveResult, H: TimeQArray, parameters: dict | Array,  *args
     ) -> tuple[tuple[Array, Array]]:
-        cost = self.cost_fun(result, H, parameters, args)
+        cost = self.cost_fun(result, H, parameters, args) * self.cost_multiplier
         return ((cost, cost < self.target_cost),)

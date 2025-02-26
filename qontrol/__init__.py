@@ -20,6 +20,16 @@ from .model import (
     SESolveModel as SESolveModel,
 )
 from .optimize import optimize as optimize
+from .plot import (
+    custom_plotter as custom_plotter,
+    DefaultPlotter as DefaultPlotter,
+    get_controls as get_controls,
+    plot_controls as plot_controls,
+    plot_costs as plot_costs,
+    plot_expects as plot_expects,
+    plot_fft as plot_fft,
+    Plotter as Plotter,
+)
 from .utils.fidelity_utils import all_cardinal_states as all_cardinal_states
 from .utils.file_io import (
     append_to_h5 as append_to_h5,

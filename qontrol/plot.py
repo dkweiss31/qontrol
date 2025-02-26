@@ -1,42 +1,23 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
 from dynamiqs.time_qarray import SummedTimeQArray, TimeQArray
 from IPython.display import clear_output
 from jax import Array
+from matplotlib.pyplot import Axes
 
 from .cost import Cost, SummedCost
 from .model import Model
 
 
-def _plot_controls_and_loss(
-    parameters: Array | dict,
-    costs: Cost,
-    model: Model,
-    expects: Array | None,
-    cost_values_over_epochs: list,
-    epoch: int,
-    options: dict,
-) -> None:
-    clear_output(wait=True)
-    
-    # Calculate the number of rows needed
-    ncols = 4
-    nrows = (len(options['which_states_plot']) + ncols - 1) // ncols + 1  # This ensures rounding up
-  
-    fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(18, 4 * nrows))
-    fig.patch.set_alpha(0.1)
-
-    # Adjust the spacing between rows
-    plt.subplots_adjust(hspace=0.5)  # Increase the hspace value to add more vertical space
-    
-    # Flatten axs for easy iteration
-    axs = axs.flatten()
-
-    # First plot: cost values over the range of epochs
-    ax = axs[0]
+def plot_costs(
+    ax: Axes, costs: Cost, epoch: int, cost_values_over_epochs: list
+) -> Axes:
+    """Plot the evolution of the cost function values."""
     ax.set_facecolor('none')
     epoch_range = np.arange(len(cost_values_over_epochs))
     cost_values_over_epochs = np.asarray(cost_values_over_epochs).T
@@ -52,20 +33,16 @@ def _plot_controls_and_loss(
     ax.legend(loc='upper right', framealpha=0.0)
     ax.set_xlabel('epochs')
     ax.set_ylabel('cost values')
+    return ax
 
-    # Second plot: Hamiltonian prefactors
-    ax = axs[1]
-    ax.set_facecolor('none')
-    H = model.H_function(parameters)
-    tsave = model.tsave_function(parameters)
-    # use a more discrete time to see steps if pwc, or the full
-    # pulse if fitting a spline, etc.
-    finer_tsave = np.linspace(0.0, tsave[-1], len(tsave) * 10)
+
+def get_controls(H: TimeQArray, tsave: np.ndarray) -> list[np.ndarray]:
+    """Extract the Hamiltonian prefactors at the supplied times."""
 
     def evaluate_at_tsave(_H: TimeQArray) -> np.ndarray:
         if hasattr(_H, 'prefactor'):
-            return jax.vmap(_H.prefactor)(finer_tsave)
-        return np.zeros_like(finer_tsave)
+            return np.asarray(jax.vmap(_H.prefactor)(tsave))
+        return np.zeros_like(tsave)
 
     controls = []
     if isinstance(H, SummedTimeQArray):
@@ -73,23 +50,38 @@ def _plot_controls_and_loss(
             controls.append(evaluate_at_tsave(_H))
     else:
         controls.append(evaluate_at_tsave(H))
-    if options['H_labels']:
-        H_labels = options['H_labels']
-    else:
-        H_labels = [f'$H_{idx}$' for idx in range(len(controls))]
+    return controls
+
+
+def plot_controls(
+    ax: Axes, _expects: Array | None, model: Model, parameters: Array | dict
+) -> Axes:
+    """Plot the Hamiltonian prefactors, usually corresponding to controls."""
+    ax.set_facecolor('none')
+    H = model.H_function(parameters)
+    tsave = model.tsave_function(parameters)
+    controls = get_controls(H, tsave)
+    H_labels = [f'$H_{idx}$' for idx in range(len(controls))]
     for idx, control in enumerate(controls):
-        ax.plot(finer_tsave, np.real(control) / 2 / np.pi, label=H_labels[idx])
+        ax.plot(tsave, np.real(control) / 2 / np.pi, label=H_labels[idx])
     ax.legend(loc='lower right', framealpha=0.0)
     ax.set_ylabel('pulse amplitude [GHz]')
     ax.set_xlabel('time [ns]')
+    return ax
 
-    # Third plot: FFT of the controls
-    ax = axs[2]
+
+def plot_fft(
+    ax: Axes, _expects: Array | None, model: Model, parameters: Array | dict
+) -> Axes:
+    """Plot the fft of the Hamiltonian controls."""
     ax.set_facecolor('none')
+    H = model.H_function(parameters)
+    tsave = model.tsave_function(parameters)
+    controls = get_controls(H, tsave)
     for control_idx, control in enumerate(controls):
         y_fft = np.fft.fft(control) / len(control)
         n = len(control)
-        dt = finer_tsave[1] - finer_tsave[0]
+        dt = tsave[1] - tsave[0]
         freqs = np.fft.fftfreq(n, dt)
         ax.plot(freqs[: n // 2], np.abs(y_fft[: n // 2]), label=f'$H_{control_idx}$')
     ax.legend(loc='lower right', framealpha=0.0)
@@ -98,29 +90,142 @@ def _plot_controls_and_loss(
     if options['freq_cutoff'] is not None:
         ax.set_xlim(options['freq_cutoff'][0], options['freq_cutoff'][1])
     ax.grid(True)
+    return ax
 
-    # Plot expectation values
-    if expects is not None:
-        expects = np.swapaxes(expects, axis1=-2, axis2=-3)
-        handles, labels = [], []
-        for idx, state_idx in enumerate(options['which_states_plot']):
-            row_num = (3 + idx) // ncols
-            col_num = (3 + idx) % ncols
-            ax = axs[row_num * ncols + col_num]
+
+def plot_expects(
+    ax: Axes, expects: Array | None, model: Model, parameters: Array | dict
+) -> Axes:
+    """Plot the expectation values obtained from the time evolution."""
+    ax.set_facecolor('none')
+    tsave = model.tsave_function(parameters)
+    # plot all expectation values by default
+    expect_idxs = np.ndindex(*expects.shape[:-1])
+    for expect_idx in expect_idxs:
+        ax.plot(tsave, np.real(expects[tuple(expect_idx)]))
+    ax.set_xlabel('time [ns]')
+    ax.set_ylabel('expectation values')
+    return ax
+
+
+def custom_plotter(plotting_functions: list[Callable]) -> Plotter:
+    r"""Instantiate a custom Plotter for tracking results during optimization.
+
+    This function returns a Plotter that can be passed to `optimize` to track the
+    progress of an optimization run. Note that the cost function values are always
+    plotted in the first panel.
+
+    Args:
+        plotting_functions _(list[Callable])_: list of functions that each return a plot
+            useful for tracking intermediate results, such as the value of the optimized
+            controls, fft of the controls, expectation values, etc. Each function must
+            have signature `example_plot_function(ax, expects, model, parameters)` where
+            `ax` is the matplotlib.pyplot.Axes instance where the results are plotted,
+            `expects` is of type dq.SolveResult.expects (which could be `None`), `model`
+            is of type `ql.Model` and `parameters` are the parameters being optimized.
+            Of course, some of these arguments may be unused for a particular plot (for
+            instance if we are plotting expectation values, we don't need access to
+            `parameters`).
+
+    Returns:
+        _(Plotter)_: Plotter whose `update_plots` method is repeatedly called during an
+            optimization run.
+
+    Examples:
+        We plot the controls as well as the expectation values for two different initial
+        states
+        ```python
+        import dynamiqs as dq
+        import jax.numpy as jnp
+        import numpy as np
+        import qontrol as ql
+        from functools import partial
+
+        H1s = [dq.sigmax(), dq.sigmay()]
+        H1_labels = ['X', 'Y']
+
+
+        def plot_states(
+            ax: Axes,
+            expects: Array | None,
+            model: ql.Model,
+            parameters: Array | dict,
+            which=0,
+        ) -> Axes:
             ax.set_facecolor('none')
-            expect_idxs = np.ndindex(*expects.shape[:-2])
-            for i, expect_idx in enumerate(expect_idxs):
-                line, = ax.plot(tsave, np.real(expects[expect_idx][state_idx]), label=f'state {i}')
-                if idx == 0:  # Collect labels and handles only once
-                    handles.append(line)
-                    labels.append(f'state {i}')
+            tsave = model.tsave_function(parameters)
+            batch_idxs = np.ndindex(*expects.shape[:-3])
+            for batch_idx in batch_idxs:
+                ax.plot(tsave, np.real(expects[tuple(batch_idx), which, 0]))
             ax.set_xlabel('time [ns]')
-            ax.set_ylabel(f'expectation values')
-            ax.set_title(f'initial state is {state_idx}')
-            ax.set_yscale('log')
-            ax.set_ylim(1e-4,1 )
+            ax.set_ylabel(
+                f'population in $|1\\rangle$ for initial state $|{which}\\rangle$'
+            )
+            return ax
 
-    # Create a single legend outside the figure
-    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.05), ncol=len(labels), framealpha=0.0)
-    plt.tight_layout()
-    plt.show()
+
+        def plot_controls(
+            ax: Axes, _expects: Array | None, model: ql.Model, parameters: Array | dict
+        ) -> Axes:
+            ax.set_facecolor('none')
+            tsave = model.tsave_function(parameters)
+            finer_tsave = jnp.linspace(0.0, tsave[-1], 10 * len(tsave))
+            for idx, control in enumerate(parameters):
+                H_c = dq.pwc(tsave, control, H1s[idx])
+                ax.plot(
+                    finer_tsave,
+                    np.real(jax.vmap(H_c.prefactor)(finer_tsave)) / 2 / np.pi,
+                    label=H1_labels[idx],
+                )
+            ax.legend(loc='lower right', framealpha=0.0)
+            ax.set_ylabel('pulse amplitude [GHz]')
+            ax.set_xlabel('time [ns]')
+            return ax
+
+
+        plotter = ql.custom_plotter(
+            [
+                plot_controls,
+                partial(plot_states, which=0),
+                partial(plot_states, which=1),
+            ]
+        )
+        ```
+        See for example [this tutorial](../examples/qubit).
+    """
+    return Plotter(plotting_functions)
+
+
+class Plotter:
+    def __init__(self, plotting_functions: list[Callable]):
+        self.plotting_functions = plotting_functions
+        self.n_plots = len(plotting_functions) + 1
+
+    def update_plots(
+        self,
+        parameters: Array | dict,
+        costs: Cost,
+        model: Model,
+        expects: Array | None,
+        cost_values_over_epochs: list,
+        epoch: int,
+    ):
+        clear_output(wait=True)
+        n_rows = np.ceil(self.n_plots / 4).astype(int)
+        fig, axes = plt.subplots(n_rows, 4, figsize=(16, n_rows * 4))
+        if n_rows == 1:
+            axes = axes[None]
+        fig.patch.set_alpha(0.1)
+        axes[0, 0] = plot_costs(axes[0, 0], costs, epoch, cost_values_over_epochs)
+        for plot_idx in range(self.n_plots - 1):
+            row_idx, col_idx = np.unravel_index(1 + plot_idx, (n_rows, 4))
+            axes[row_idx, col_idx] = self.plotting_functions[plot_idx](
+                axes[row_idx, col_idx], expects, model, parameters
+            )
+        plt.tight_layout()
+        plt.show()
+
+
+class DefaultPlotter(Plotter):
+    def __init__(self):
+        Plotter.__init__(self, [plot_fft, plot_controls, plot_expects])
