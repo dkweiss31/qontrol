@@ -130,7 +130,7 @@ def optimize(
     try:  # trick for catching keyboard interrupt
         for epoch in range(opt_options['epochs']):
             epoch_start_time = time.time()
-            parameters['phi1'] = random_phi1()
+            parameters['phase'] = random_phase()
             parameters, grads, opt_state, aux = step(
                 parameters, costs, model, opt_state, solver, gradient, dq_options
             )
@@ -223,18 +223,18 @@ def phase_constraints( final_state):
     return phi1p, phi2p, theta1p
 
 import jax.random as jrandom
-def random_phi1():
+def random_phase():
     # Use the current time (in nanoseconds) as part of the seed
     current_time = int(time.time() * 1e9)
     # Create a random key using the current time
     key = jrandom.PRNGKey(current_time)
     
     # Define the range of numbers from 0 to pi
-    phi1_values = jnp.linspace(0, jnp.pi, 5)
+    phase_values = jnp.linspace(0, jnp.pi, 5)
     
     # Randomly choose one value from these numbers
-    phi1 = jrandom.choice(key, phi1_values)
-    return phi1
+    phase = jrandom.choice(key, phase_values)
+    return phase
 
 def loss(
     parameters: Array | dict,
@@ -244,16 +244,15 @@ def loss(
     gradient: Gradient,
     dq_options: dq.Options,
 ) -> [float, Array]:
+    phase = parameters['phase']
+    parameters['phase'] = jnp.array([0.])
     result, H = model(parameters, solver, gradient, dq_options)
     final_state = result.final_state[0]
     phi1p, phi2p, theta1p = phase_constraints(final_state)
-    phi1 = parameters['phi1']
     # jax.debug.print("Extracted value: {value}", value=phi1)
-    dgamma = phi1 + phi1p
-    parameters['phase'] = parameters['phase'] + dgamma
+    parameters['phase'] =  phase
     result, H = model(parameters, solver, gradient, dq_options)
-    parameters['phase'] = parameters['phase'] - dgamma
-    cost_values, terminate = zip(*costs(result, H, parameters,phi1p,phi2p,theta1p,phi1), strict=True)
+    cost_values, terminate = zip(*costs(result, H, parameters,phi1p,phi2p,theta1p,phase), strict=True)
     # cost_values, terminate = zip(*costs(result, H, parameters), strict=True)
     total_cost = jax.tree.reduce(jnp.add, cost_values)
     total_cost = jnp.log(jnp.sum(jnp.asarray(total_cost)))
