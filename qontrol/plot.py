@@ -113,7 +113,9 @@ def custom_plotter(plotting_functions: list[Callable]) -> Plotter:
 
     This function returns a Plotter that can be passed to `optimize` to track the
     progress of an optimization run. Note that the cost function values are always
-    plotted in the first panel.
+    plotted in the first panel and that there is no limit to the number of plots a user
+    can ask for: if more than four, additional plots will appear in a new row of four,
+    and so on.
 
     Args:
         plotting_functions _(list[Callable])_: list of functions that each return a plot
