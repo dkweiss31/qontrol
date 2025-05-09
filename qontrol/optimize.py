@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 from dynamiqs.gradient import Gradient
-from dynamiqs.solver import Solver, Tsit5
+from dynamiqs.method import Method, Tsit5
 from jax import Array
 from jaxtyping import ArrayLike
 from optax import GradientTransformation, OptState, TransformInitFn
@@ -50,7 +50,7 @@ def optimize(
     *,
     optimizer: GradientTransformation = optax.adam(0.0001, b1=0.99, b2=0.99),  # noqa: B008
     plotter: Plotter = DefaultPlotter(),  # noqa: B008
-    solver: Solver = Tsit5(),  # noqa: B008
+    method: Method = Tsit5(),  # noqa: B008
     gradient: Gradient | None = None,
     dq_options: dq.Options = dq.Options(),  # noqa: B008
     opt_options: dict | None = None,
@@ -72,7 +72,7 @@ def optimize(
         optimizer _(optax.GradientTransformation)_: optax optimizer to use
             for gradient descent. Defaults to the Adam optimizer.
         plotter _(Plotter)_: Plotter for monitoring the optimization.
-        solver _(Solver)_: Solver passed to dynamiqs.
+        method _(Method)_: Method passed to dynamiqs.
         gradient _()Gradient_: Gradient passed to dynamiqs.
         options _(dict)_: Options for grape optimization.
             verbose _(bool)_: If `True`, the optimizer will print out the infidelity at
@@ -104,18 +104,18 @@ def optimize(
     previous_parameters = parameters
     prev_total_cost = 0.0
 
-    @partial(jax.jit, static_argnames=('_solver', '_gradient', '_options'))
+    @partial(jax.jit, static_argnames=('_method', '_gradient', '_options'))
     def step(
         _parameters: ArrayLike | dict,
         _costs: Cost,
         _model: Model,
         _opt_state: OptState,
-        _solver: Solver,
+        _method: Method,
         _gradient: Gradient,
         _options: dq.Options,
     ) -> [Array, TransformInitFn, Array]:
         grads, aux = jax.grad(loss, has_aux=True)(
-            _parameters, _costs, _model, _solver, _gradient, _options
+            _parameters, _costs, _model, _method, _gradient, _options
         )
         updates, _opt_state = optimizer.update(grads, _opt_state)
         _parameters = optax.apply_updates(_parameters, updates)
@@ -127,7 +127,7 @@ def optimize(
         for epoch in range(opt_options['epochs']):
             epoch_start_time = time.time()
             parameters, grads, opt_state, aux = step(
-                parameters, costs, model, opt_state, solver, gradient, dq_options
+                parameters, costs, model, opt_state, method, gradient, dq_options
             )
             elapsed_time = np.around(time.time() - epoch_start_time, decimals=3)
             total_cost, cost_values, terminate_for_cost, expects = aux
@@ -202,11 +202,11 @@ def loss(
     parameters: Array | dict,
     costs: Cost,
     model: Model,
-    solver: Solver,
+    method: Method,
     gradient: Gradient,
     dq_options: dq.Options,
 ) -> [float, Array]:
-    result, H = model(parameters, solver, gradient, dq_options)
+    result, H = model(parameters, method, gradient, dq_options)
     cost_values, terminate = zip(*costs(result, H, parameters), strict=True)
     total_cost = jax.tree.reduce(jnp.add, cost_values)
     total_cost = jnp.log(jnp.sum(jnp.asarray(total_cost)))
