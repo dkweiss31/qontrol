@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import jax.random
 import optax
 import pytest
-from dynamiqs.solver import Expm, Tsit5
+from dynamiqs.method import Expm, Tsit5
 from jax import Array
 from scipy.stats import unitary_group
 
@@ -171,7 +171,7 @@ def test_propagator(opt_type, tmp_path):
         optimizer=optax.adam(0.003, b1=0.99, b2=0.99),
         opt_options={'epochs': 1000, 'plot': False},
         dq_options=dq_options,
-        solver=Expm(),
+        method=Expm(),
     )
     opt_result, opt_H = model(opt_params, Expm(), None)
     ((cost, terminate),) = cost(opt_result, opt_H, opt_params)

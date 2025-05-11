@@ -5,8 +5,8 @@ import equinox as eqx
 import jax.tree_util as jtu
 from dynamiqs import QArrayLike, TimeQArray
 from dynamiqs.gradient import Gradient
+from dynamiqs.method import Method, Tsit5
 from dynamiqs.result import Result
-from dynamiqs.solver import Solver, Tsit5
 from jax import Array
 from jaxtyping import ArrayLike
 
@@ -169,8 +169,8 @@ def sepropagator_model(
     Args:
         H_function _(callable)_: function specifying how to update the Hamiltonian
         tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
-            array of times passed to the solver or a method specifying how to update
-            the times that are passed to the solver
+            array of times passed to the method or a function specifying how to update
+            the times that are passed to the method
         exp_ops _(list of array-like)_: Operators to calculate expectation values of,
             in case some of the cost functions depend on the value of certain
             expectation values.
@@ -252,8 +252,8 @@ def mepropagator_model(
         jump_ops _(list of qarray-like or time-qarray, each of shape (...Lk, n, n))_:
             List of jump operators.
         tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
-            array of times passed to the solver or a method specifying how to update
-            the times that are passed to the solver
+            array of times passed to the method or a method specifying how to update
+            the times that are passed to the method
         exp_ops _(list of array-like)_: Operators to calculate expectation values of,
             in case some of the cost functions depend on the value of certain
             expectation values.
@@ -300,7 +300,7 @@ class Model(eqx.Module):
     def __call__(
         self,
         parameters: Array | dict,
-        solver: Solver = Tsit5(),  # noqa B008
+        method: Method = Tsit5(),  # noqa B008
         gradient: Gradient | None = None,
         options: dq.Options = dq.Options(),  # noqa B008
     ) -> tuple[Result, TimeQArray]:
@@ -319,7 +319,7 @@ class SESolveModel(Model):
     def __call__(
         self,
         parameters: Array | dict,
-        solver: Solver = Tsit5(),  # noqa B008
+        method: Method = Tsit5(),  # noqa B008
         gradient: Gradient | None = None,
         options: dq.Options = dq.Options(),  # noqa B008
     ) -> tuple[Result, TimeQArray]:
@@ -330,7 +330,7 @@ class SESolveModel(Model):
             self.initial_states,
             new_tsave,
             exp_ops=self.exp_ops,
-            solver=solver,
+            method=method,
             gradient=gradient,
             options=options,
         )
@@ -350,7 +350,7 @@ class MESolveModel(Model):
     def __call__(
         self,
         parameters: Array | dict,
-        solver: Solver = Tsit5(),  # noqa B008
+        method: Method = Tsit5(),  # noqa B008
         gradient: Gradient | None = None,
         options: dq.Options = dq.Options(),  # noqa B008
     ) -> tuple[Result, TimeQArray]:
@@ -362,7 +362,7 @@ class MESolveModel(Model):
             self.initial_states,
             new_tsave,
             exp_ops=self.exp_ops,
-            solver=solver,
+            method=method,
             gradient=gradient,
             options=options,
         )
@@ -379,14 +379,14 @@ class SEPropagatorModel(Model):
     def __call__(
         self,
         parameters: Array | dict,
-        solver: Solver = Tsit5(),  # noqa B008
+        method: Method = Tsit5(),  # noqa B008
         gradient: Gradient | None = None,
         options: dq.Options = dq.Options(),  # noqa B008
     ) -> tuple[Result, TimeQArray]:
         new_H = self.H_function(parameters)
         new_tsave = self.tsave_function(parameters)
         result = dq.sepropagator(
-            new_H, new_tsave, solver=solver, gradient=gradient, options=options
+            new_H, new_tsave, method=method, gradient=gradient, options=options
         )
         return result, new_H
 
@@ -403,7 +403,7 @@ class MEPropagatorModel(Model):
     def __call__(
         self,
         parameters: Array | dict,
-        solver: Solver = Tsit5(),  # noqa B008
+        method: Method = Tsit5(),  # noqa B008
         gradient: Gradient | None = None,
         options: dq.Options = dq.Options(),  # noqa B008
     ) -> tuple[Result, TimeQArray]:
@@ -413,7 +413,7 @@ class MEPropagatorModel(Model):
             new_H,
             self.jump_ops,
             new_tsave,
-            solver=solver,
+            method=method,
             gradient=gradient,
             options=options,
         )

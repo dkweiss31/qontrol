@@ -1,21 +1,21 @@
 [project]
 name = "qontrol"
-version = "0.2.2"
+version = "0.2.3"
 requires-python = ">=3.10"
 description = "Optimal control wrapper of dynamiqs."
 dependencies = [
     "numpy",
     "matplotlib<3.10.0", # for breaking issues with version 3.10 https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/issues/2411
-    "jax",
+    "jax>=0.4.36",
     "jaxlib",
     "jaxtyping",
     "jupyter",
     "h5py",
-    "diffrax>=0.5.1",
+    "diffrax>=0.6.1", # in keeping with dynamiqs
     "equinox",
     "ipython",
     "optax",
-    "dynamiqs>=0.3.0", # version supporting QArray
+    "dynamiqs>=0.3.2", # version supporting QArray; Solver->Method change
 ]
 
 [build-system]
