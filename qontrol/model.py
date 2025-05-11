@@ -5,8 +5,8 @@ import equinox as eqx
 import jax.tree_util as jtu
 from dynamiqs import QArrayLike, TimeQArray
 from dynamiqs.gradient import Gradient
-from dynamiqs.result import Result
 from dynamiqs.method import Method, Tsit5
+from dynamiqs.result import Result
 from jax import Array
 from jaxtyping import ArrayLike
 
