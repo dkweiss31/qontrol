@@ -100,9 +100,10 @@ def plot_expects(
     ax.set_facecolor('none')
     tsave = model.tsave_function(parameters)
     # plot all expectation values by default
-    expect_idxs = np.ndindex(*expects.shape[:-1])
-    for expect_idx in expect_idxs:
-        ax.plot(tsave, np.real(expects[tuple(expect_idx)]))
+    if expects is not None:
+        expect_idxs = np.ndindex(*expects.shape[:-1])
+        for expect_idx in expect_idxs:
+            ax.plot(tsave, np.real(expects[tuple(expect_idx)]))
     ax.set_xlabel('time [ns]')
     ax.set_ylabel('expectation values')
     return ax
