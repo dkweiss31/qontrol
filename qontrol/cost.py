@@ -375,12 +375,12 @@ class CoherentInfidelity(Cost):
     ) -> tuple[tuple[Array, Array]]:
         overlaps = self.target_states.dag() @ result.final_state
         if not isket(result.final_state):
-            overlaps = overlaps.trace(axis1=-1, axis2=-2)
+            overlaps = overlaps.trace()
             # average over states before squaring: for density matrices this doesn't do
             # anything different from the incoherent definition of the infidelity, since
             # the trace is always real and positive. Included here only for
             # completeness.
-            overlaps_avg = jnp.mean(jnp.squeeze(overlaps, axis=[-1, -2]), axis=-1)
+            overlaps_avg = jnp.mean(overlaps, axis=-1)
             fid = jnp.mean(jnp.abs(overlaps_avg))
         else:
             # average over states before squaring
