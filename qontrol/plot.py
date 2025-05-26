@@ -214,14 +214,15 @@ class Plotter:
         epoch: int,
     ):
         clear_output(wait=True)
-        n_rows = np.ceil(self.n_plots / 4).astype(int)
-        fig, axes = plt.subplots(n_rows, 4, figsize=(16, n_rows * 4))
+        n_col = 4 if self.n_plots >= 4 else self.n_plots
+        n_rows = np.ceil(self.n_plots / n_col).astype(int)
+        fig, axes = plt.subplots(n_rows, n_col, figsize=(16, n_rows * 4))
         if n_rows == 1:
             axes = axes[None]
         fig.patch.set_alpha(0.1)
         axes[0, 0] = plot_costs(axes[0, 0], costs, epoch, cost_values_over_epochs)
         for plot_idx in range(self.n_plots - 1):
-            row_idx, col_idx = np.unravel_index(1 + plot_idx, (n_rows, 4))
+            row_idx, col_idx = np.unravel_index(1 + plot_idx, (n_rows, n_col))
             axes[row_idx, col_idx] = self.plotting_functions[plot_idx](
                 axes[row_idx, col_idx], expects, model, parameters
             )

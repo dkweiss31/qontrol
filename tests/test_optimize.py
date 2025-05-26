@@ -263,7 +263,6 @@ def setup_coherent_system():
     )
 
     pi2 = jnp.pi * 2
-    anharm = -224e-3
     kerr = -1e-6
     chi = -0.71e-3
     H0 = kerr / 2 * dq.dag(a) @ dq.dag(a) @ a @ a

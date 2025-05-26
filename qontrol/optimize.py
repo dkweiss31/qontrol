@@ -15,8 +15,8 @@ from jaxtyping import ArrayLike
 from optax import GradientTransformation, OptState, TransformInitFn
 
 from .cost import Cost, SummedCost
-from .model import Model
-from .plot import DefaultPlotter, Plotter
+from .model import Model, SEPropagatorModel, MEPropagatorModel
+from .plot import DefaultPlotter, Plotter, plot_fft, plot_controls
 from .utils.file_io import append_to_h5
 
 
@@ -49,7 +49,7 @@ def optimize(
     model: Model,
     *,
     optimizer: GradientTransformation = optax.adam(0.0001, b1=0.99, b2=0.99),  # noqa: B008
-    plotter: Plotter = DefaultPlotter(),  # noqa: B008
+    plotter: Plotter | None = None,  # noqa: B008
     method: Method = Tsit5(),  # noqa: B008
     gradient: Gradient | None = None,
     dq_options: dq.Options = dq.Options(),  # noqa: B008
@@ -103,6 +103,18 @@ def optimize(
     epoch_times = []
     previous_parameters = parameters
     prev_total_cost = 0.0
+
+    # check plotter
+    if plotter is None:
+        if (
+            model.exp_ops is not None
+            and len(model.exp_ops) > 0
+            and not isinstance(model, SEPropagatorModel)
+            and not isinstance(model, MEPropagatorModel)
+        ):
+            plotter = DefaultPlotter()
+        else:
+            plotter = Plotter([plot_fft, plot_controls])
 
     @partial(jax.jit, static_argnames=('_method', '_gradient', '_options'))
     def step(
