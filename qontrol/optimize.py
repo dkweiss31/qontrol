@@ -141,6 +141,7 @@ def optimize(
             parameters, grads, opt_state, aux = step(
                 parameters, costs, model, opt_state, method, gradient, dq_options
             )
+            jax.block_until_ready(parameters)
             elapsed_time = np.around(time.time() - epoch_start_time, decimals=3)
             total_cost, cost_values, terminate_for_cost, expects = aux
             cost_values_over_epochs.append(cost_values)
@@ -155,6 +156,10 @@ def optimize(
                     print('\n')
                 else:
                     print(costs, cost_values[0])
+                #! user added
+                import contextlib
+                contextlib.suppress(print(f"lr * ||grad|| {opt_state.hyperparams['learning_rate'] * jnp.linalg.norm(grads):.8f}"))
+
             if filepath is not None:
                 data_dict = {
                     'cost_values': jnp.asarray(cost_values),
