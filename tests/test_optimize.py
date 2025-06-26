@@ -291,7 +291,7 @@ def setup_coherent_system():
 def test_gate_plot(learning_rate, target_cost, tmp_path):
     H_pwc, tsave, init_drive_params, target_gate, Zt = setup_gate_system()
 
-    model = sepropagator_model(H_pwc, tsave, exp_ops=[Zt])
+    model = sepropagator_model(H_pwc, tsave)
     cost = propagator_infidelity(target_unitary=target_gate, target_cost=target_cost)
 
     optimizer = optax.adam(learning_rate=learning_rate)

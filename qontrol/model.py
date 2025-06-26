@@ -157,8 +157,6 @@ def mesolve_model(
 def sepropagator_model(
     H_function: callable,
     tsave_or_function: ArrayLike | callable,
-    *,
-    exp_ops: list[ArrayLike] | None = None,
 ) -> SEPropagatorModel:
     r"""Instantiate sepropagator model.
 
@@ -231,15 +229,13 @@ def sepropagator_model(
 
     """
     H_function, tsave_or_function = _initialize_model(H_function, tsave_or_function)
-    return SEPropagatorModel(H_function, tsave_or_function, exp_ops=exp_ops)
+    return SEPropagatorModel(H_function, tsave_or_function)
 
 
 def mepropagator_model(
     H_function: callable,
     jump_ops: list[QArrayLike | TimeQArray],
     tsave_or_function: ArrayLike | callable,
-    *,
-    exp_ops: list[ArrayLike] | None = None,
 ) -> MEPropagatorModel:
     r"""Instantiate mepropagator model.
 
@@ -277,7 +273,7 @@ def mepropagator_model(
     """
     H_function, tsave_or_function = _initialize_model(H_function, tsave_or_function)
     return MEPropagatorModel(
-        H_function, tsave_or_function, exp_ops=exp_ops, jump_ops=jump_ops
+        H_function, tsave_or_function, jump_ops=jump_ops
     )
 
 
@@ -295,7 +291,6 @@ def _initialize_model(
 class Model(eqx.Module):
     H_function: callable
     tsave_function: callable
-    exp_ops: Array | None
 
     def __call__(
         self,
@@ -307,7 +302,15 @@ class Model(eqx.Module):
         raise NotImplementedError
 
 
-class SESolveModel(Model):
+class SolveModel(Model):
+    exp_ops: Array | None
+
+
+class PropagatorModel(Model):
+    pass
+
+
+class SESolveModel(SolveModel):
     r"""Model for Schrödinger-equation optimization.
 
     When called with the parameters we optimize over returns the results of `sesolve`
@@ -337,7 +340,7 @@ class SESolveModel(Model):
         return result, new_H
 
 
-class MESolveModel(Model):
+class MESolveModel(SolveModel):
     r"""Model for Lindblad-master-equation optimization.
 
     When called with the parameters we optimize over returns the results of `mesolve`
@@ -369,7 +372,7 @@ class MESolveModel(Model):
         return result, new_H
 
 
-class SEPropagatorModel(Model):
+class SEPropagatorModel(PropagatorModel):
     r"""Model for Schrödinger-equation propagator optimization.
 
     When called with the parameters we optimize over returns the results of
@@ -391,7 +394,7 @@ class SEPropagatorModel(Model):
         return result, new_H
 
 
-class MEPropagatorModel(Model):
+class MEPropagatorModel(PropagatorModel):
     r"""Model for Lindblad-master-equation propagator optimization.
 
     When called with the parameters we optimize over returns the results of `mesolve`

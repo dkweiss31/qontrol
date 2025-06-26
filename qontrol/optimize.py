@@ -15,7 +15,7 @@ from jaxtyping import ArrayLike
 from optax import GradientTransformation, OptState, TransformInitFn
 
 from .cost import Cost, SummedCost
-from .model import MEPropagatorModel, Model, SEPropagatorModel
+from .model import Model, SolveModel
 from .plot import DefaultPlotter, plot_controls, plot_fft, Plotter
 from .utils.file_io import append_to_h5
 
@@ -107,10 +107,9 @@ def optimize(
     # check plotter
     if plotter is None:
         if (
-            model.exp_ops is not None
+            isinstance(model, SolveModel)
+            and model.exp_ops is not None
             and len(model.exp_ops) > 0
-            and not isinstance(model, SEPropagatorModel)
-            and not isinstance(model, MEPropagatorModel)
         ):
             plotter = DefaultPlotter()
         else:
