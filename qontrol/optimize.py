@@ -140,7 +140,6 @@ def optimize(
             parameters, grads, opt_state, aux = jax.block_until_ready(
                 step(parameters, costs, model, opt_state, method, gradient, dq_options)
             )
-            jax.block_until_ready(parameters)
             elapsed_time = np.around(time.time() - epoch_start_time, decimals=3)
             total_cost, cost_values, terminate_for_cost, expects = aux
             cost_values_over_epochs.append(cost_values)
