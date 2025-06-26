@@ -156,9 +156,6 @@ def optimize(
                     print('\n')
                 else:
                     print(costs, cost_values[0])
-                #! user added
-                import contextlib
-                contextlib.suppress(print(f"lr * ||grad|| {opt_state.hyperparams['learning_rate'] * jnp.linalg.norm(grads):.8f}"))
 
             if filepath is not None:
                 data_dict = {

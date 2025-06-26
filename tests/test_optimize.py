@@ -295,7 +295,7 @@ def test_gate_plot(learning_rate, target_cost, tmp_path):
     cost = propagator_infidelity(target_unitary=target_gate, target_cost=target_cost)
 
     optimizer = optax.adam(learning_rate=learning_rate)
-    opt_options = {'verbose': False, 'plot': True, 'plot_period': 10}
+    opt_options = {'verbose': False, 'plot': True, 'plot_period': 1}
     dq_options = dq.Options(progress_meter=None)
 
     opt_params = optimize(

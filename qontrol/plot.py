@@ -5,7 +5,7 @@ from collections.abc import Callable
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
-from dynamiqs.time_qarray import SummedTimeQArray, TimeQArray
+from dynamiqs.time_qarray import SummedTimeQArray, TimeQArray, ConstantTimeQArray
 from IPython.display import clear_output
 from jax import Array
 from matplotlib.pyplot import Axes
@@ -49,7 +49,10 @@ def get_controls(H: TimeQArray, tsave: np.ndarray) -> list[np.ndarray]:
     controls = []
     if isinstance(H, SummedTimeQArray):
         for _H in H.timeqarrays:
-            controls.append(evaluate_at_tsave(_H))
+            if isinstance(_H, ConstantTimeQArray):
+                controls.insert(0, evaluate_at_tsave(_H))
+            else:
+                controls.append(evaluate_at_tsave(_H))
     else:
         controls.append(evaluate_at_tsave(H))
     return controls
