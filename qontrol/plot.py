@@ -5,7 +5,7 @@ from collections.abc import Callable
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
-from dynamiqs.time_qarray import SummedTimeQArray, TimeQArray, ConstantTimeQArray
+from dynamiqs.time_qarray import ConstantTimeQArray, SummedTimeQArray, TimeQArray
 from IPython.display import clear_output
 from jax import Array
 from matplotlib.pyplot import Axes
@@ -68,7 +68,7 @@ def plot_controls(
     controls = get_controls(H, tsave)
     H_labels = [f'$H_{idx}$' for idx in range(len(controls))]
     for idx, control in enumerate(controls):
-        ax.plot(tsave, np.real(control) / 2 / np.pi, label=H_labels[idx])
+        ax.plot(tsave, np.real(control), label=H_labels[idx])
     ax.legend(loc='lower right', framealpha=0.0)
     ax.set_ylabel('pulse amplitude [GHz]')
     ax.set_xlabel('time [ns]')

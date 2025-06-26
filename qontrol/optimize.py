@@ -15,8 +15,8 @@ from jaxtyping import ArrayLike
 from optax import GradientTransformation, OptState, TransformInitFn
 
 from .cost import Cost, SummedCost
-from .model import Model, SEPropagatorModel, MEPropagatorModel
-from .plot import DefaultPlotter, Plotter, plot_fft, plot_controls
+from .model import MEPropagatorModel, Model, SEPropagatorModel
+from .plot import DefaultPlotter, plot_controls, plot_fft, Plotter
 from .utils.file_io import append_to_h5
 
 
