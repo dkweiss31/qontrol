@@ -137,8 +137,8 @@ def optimize(
     try:  # trick for catching keyboard interrupt
         for epoch in range(opt_options['epochs']):
             epoch_start_time = time.time()
-            parameters, grads, opt_state, aux = step(
-                parameters, costs, model, opt_state, method, gradient, dq_options
+            parameters, grads, opt_state, aux = jax.block_until_ready(
+                step(parameters, costs, model, opt_state, method, gradient, dq_options)
             )
             jax.block_until_ready(parameters)
             elapsed_time = np.around(time.time() - epoch_start_time, decimals=3)
