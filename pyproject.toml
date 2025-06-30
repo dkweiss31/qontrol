@@ -118,7 +118,7 @@ cmd = 'task lint && task format && task codespell'
 help = "clean the code (ruff + codespell)"
 
 [tool.taskipy.tasks.test]
-cmd = 'echo "\n>>> pytest -n=auto tests" && pytest -n=auto tests'
+cmd = 'echo "\n>>> pytest -n=1 tests" && pytest -n=auto tests'
 help = "run the unit tests suite (pytest)"
 
 [tool.taskipy.tasks.doctest-code]
