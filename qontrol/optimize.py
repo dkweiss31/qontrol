@@ -49,7 +49,7 @@ def optimize(
     model: Model,
     *,
     optimizer: GradientTransformation = optax.adam(0.0001, b1=0.99, b2=0.99),  # noqa: B008
-    plotter: Plotter | None = None,  # noqa: B008
+    plotter: Plotter | None = None,
     method: Method = Tsit5(),  # noqa: B008
     gradient: Gradient | None = None,
     dq_options: dq.Options = dq.Options(),  # noqa: B008

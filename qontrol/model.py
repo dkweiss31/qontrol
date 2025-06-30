@@ -155,8 +155,7 @@ def mesolve_model(
 
 
 def sepropagator_model(
-    H_function: callable,
-    tsave_or_function: ArrayLike | callable,
+    H_function: callable, tsave_or_function: ArrayLike | callable
 ) -> SEPropagatorModel:
     r"""Instantiate sepropagator model.
 
@@ -272,9 +271,7 @@ def mepropagator_model(
 
     """
     H_function, tsave_or_function = _initialize_model(H_function, tsave_or_function)
-    return MEPropagatorModel(
-        H_function, tsave_or_function, jump_ops=jump_ops
-    )
+    return MEPropagatorModel(H_function, tsave_or_function, jump_ops=jump_ops)
 
 
 def _initialize_model(
