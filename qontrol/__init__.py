@@ -15,9 +15,11 @@ from .model import (
     mesolve_model as mesolve_model,
     MESolveModel as MESolveModel,
     Model as Model,
+    PropagatorModel as PropagatorModel,
     sepropagator_model as sepropagator_model,
     sesolve_model as sesolve_model,
     SESolveModel as SESolveModel,
+    SolveModel as SolveModel,
 )
 from .optimize import optimize as optimize
 from .plot import (

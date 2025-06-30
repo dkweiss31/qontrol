@@ -70,7 +70,7 @@ def plot_controls(
     for idx, control in enumerate(controls):
         ax.plot(tsave, np.real(control), label=H_labels[idx])
     ax.legend(loc='lower right', framealpha=0.0)
-    ax.set_ylabel('pulse amplitude [GHz]')
+    ax.set_ylabel('pulse amplitude')
     ax.set_xlabel('time [ns]')
     return ax
 
@@ -219,7 +219,7 @@ class Plotter:
         clear_output(wait=True)
         n_col = 4 if self.n_plots >= 4 else self.n_plots
         n_rows = np.ceil(self.n_plots / n_col).astype(int)
-        fig, axes = plt.subplots(n_rows, n_col, figsize=(16, n_rows * 4))
+        fig, axes = plt.subplots(n_rows, n_col, figsize=(n_col * 4, n_rows * 4))
         if n_rows == 1:
             axes = axes[None]
         fig.patch.set_alpha(0.1)
