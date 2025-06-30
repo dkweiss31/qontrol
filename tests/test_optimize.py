@@ -176,3 +176,170 @@ def test_propagator(opt_type, tmp_path):
     opt_result, opt_H = model(opt_params, Expm(), None)
     ((cost, terminate),) = cost(opt_result, opt_H, opt_params)
     assert terminate
+
+
+def setup_gate_system():
+    seed_amplitude = 1e-2
+    T = 500
+    dt = 1
+    ntimes = int(T // dt) + 1
+    tsave = jnp.linspace(0, T, ntimes)
+
+    xi01 = 0
+    xi10 = 0
+
+    sx = dq.sigmax()
+    sy = dq.sigmay()
+    sz = dq.sigmaz()
+    eye = dq.eye(2)
+
+    Zc1 = dq.tensor(sz, eye, eye)
+    Xt = dq.tensor(eye, sx, eye)
+    Zc2 = dq.tensor(eye, eye, sz)
+    Yt = dq.tensor(eye, sy, eye)
+    Zt = dq.tensor(eye, sz, eye)
+
+    CX01 = dq.asqarray(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]], dims=(2, 2)
+    )
+
+    CX10 = dq.asqarray(
+        [[1, 0, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0], [0, 1, 0, 0]], dims=(2, 2)
+    )
+
+    Hk = [x * jnp.pi * 2 * 40e-3 for x in (Zc1 @ Xt, Xt @ Zc2, Xt, Yt)]
+    H0 = (
+        (xi01 / 4 * Zc1 @ Zt + xi10 / 4 * Zt @ Zc2 - (xi01 + xi10) / 4 * Zt)
+        * jnp.pi
+        * 2
+    )
+
+    def H_pwc(drive_params):
+        H = H0
+        for idx, _H1 in enumerate(Hk):
+            H += dq.pwc(tsave, drive_params[idx], _H1)
+        return H
+
+    def t(*args):
+        return dq.tensor(*args)
+
+    target_gate = (
+        t(eye, dq.hadamard(), eye)
+        @ t(CX01, eye)
+        @ t(eye, dq.tgate(), eye)
+        @ t(eye, CX10)
+        @ t(eye, dq.tgate(), eye).dag()
+        @ t(CX01, eye)
+        @ t(eye, dq.tgate(), eye)
+        @ t(eye, CX10)
+        @ t(eye, dq.tgate(), eye).dag()
+        @ t(eye, dq.hadamard(), eye)
+    )
+
+    init_drive_params = seed_amplitude * jnp.ones((len(Hk), ntimes - 1))
+
+    return H_pwc, tsave, init_drive_params, target_gate, Zt
+
+
+def setup_coherent_system():
+    N = 10
+    seed_amplitude = 1e-2
+    T = 2200
+    dt = 2
+    ntimes = int(T // dt) + 1
+    tsave = jnp.linspace(0, T, ntimes)
+
+    a = dq.tensor(dq.eye(2), dq.destroy(N))
+    sx = dq.tensor(dq.sigmax(), dq.eye(N))
+    sy = dq.tensor(dq.sigmay(), dq.eye(N))
+    sm = dq.tensor(dq.sigmam(), dq.eye(N))
+    dx = a + dq.dag(a)
+    dy = 1j * (a - dq.dag(a))
+
+    y0 = dq.tensor(dq.basis(2, 0), dq.basis(N, 0))
+    y_target = dq.unit(
+        dq.tensor(dq.basis(2, 0), dq.basis(N, 0))
+        + dq.tensor(dq.basis(2, 0), dq.basis(N, 4))
+    )
+
+    pi2 = jnp.pi * 2
+    kerr = -1e-6
+    chi = -0.71e-3
+    H0 = kerr / 2 * dq.dag(a) @ dq.dag(a) @ a @ a
+    H0 += chi * dq.dag(a) @ a @ dq.dag(sm) @ sm
+    H0 *= pi2
+
+    Hk = [x * pi2 * 40e-3 for x in (sx, sy, dx, dy)]
+
+    def H_pwc(drive_params):
+        H = H0
+        for idx, _H1 in enumerate(Hk):
+            H += dq.pwc(tsave, drive_params[idx], _H1)
+        return H
+
+    init_drive_params = seed_amplitude * jnp.ones((len(Hk), ntimes - 1))
+    exp_ops = [
+        dq.tensor(dq.eye(2), dq.destroy(N))
+        @ dq.dag(dq.tensor(dq.eye(2), dq.destroy(N)))
+    ]
+
+    return H_pwc, tsave, init_drive_params, [y0], [y_target], exp_ops
+
+
+@pytest.mark.parametrize('learning_rate', [1e-4])
+@pytest.mark.parametrize('target_cost', [1e-2])
+def test_gate_plot(learning_rate, target_cost, tmp_path):
+    H_pwc, tsave, init_drive_params, target_gate, Zt = setup_gate_system()
+
+    model = sepropagator_model(H_pwc, tsave)
+    cost = propagator_infidelity(target_unitary=target_gate, target_cost=target_cost)
+
+    optimizer = optax.adam(learning_rate=learning_rate)
+    opt_options = {'verbose': False, 'plot': True, 'plot_period': 1}
+    dq_options = dq.Options(progress_meter=None)
+
+    opt_params = optimize(
+        init_drive_params,
+        cost,
+        model,
+        filepath=_filepath(tmp_path),
+        optimizer=optimizer,
+        opt_options=opt_options,
+        method=dq.integrators.Expm(),
+        dq_options=dq_options,
+    )
+
+    final_fidelity = dq.fidelity(
+        dq.sepropagator(H_pwc(opt_params), tsave).propagators[-1], target_gate
+    )
+    assert final_fidelity >= (1 - target_cost)
+
+
+@pytest.mark.parametrize('learning_rate', [1e-4])
+@pytest.mark.parametrize('target_cost', [1e-2])
+def test_single_target_coherent(learning_rate, target_cost, tmp_path):
+    H_pwc, tsave, init_drive_params, initial_states, target_states, exp_ops = (
+        setup_coherent_system()
+    )
+
+    model = sesolve_model(H_pwc, initial_states, tsave, exp_ops=exp_ops)
+    cost = coherent_infidelity(target_states=target_states, target_cost=target_cost)
+
+    optimizer = optax.adam(learning_rate=learning_rate)
+    opt_options = {'verbose': False, 'plot': False}
+    dq_options = dq.Options(save_states=False, progress_meter=None)
+
+    opt_params = optimize(
+        init_drive_params,
+        cost,
+        model,
+        filepath=_filepath(tmp_path),
+        optimizer=optimizer,
+        opt_options=opt_options,
+        method=dq.integrators.Expm(),
+        dq_options=dq_options,
+    )
+
+    opt_result, opt_H = model(opt_params, dq.integrators.Expm(), None, dq_options)
+    cost_values, terminate = zip(*cost(opt_result, opt_H, opt_params), strict=True)
+    assert all(terminate)

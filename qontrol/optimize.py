@@ -15,8 +15,8 @@ from jaxtyping import ArrayLike
 from optax import GradientTransformation, OptState, TransformInitFn
 
 from .cost import Cost, SummedCost
-from .model import Model
-from .plot import DefaultPlotter, Plotter
+from .model import Model, SolveModel
+from .plot import DefaultPlotter, plot_controls, plot_fft, Plotter
 from .utils.file_io import append_to_h5
 
 
@@ -49,7 +49,7 @@ def optimize(
     model: Model,
     *,
     optimizer: GradientTransformation = optax.adam(0.0001, b1=0.99, b2=0.99),  # noqa: B008
-    plotter: Plotter = DefaultPlotter(),  # noqa: B008
+    plotter: Plotter | None = None,
     method: Method = Tsit5(),  # noqa: B008
     gradient: Gradient | None = None,
     dq_options: dq.Options = dq.Options(),  # noqa: B008
@@ -104,6 +104,17 @@ def optimize(
     previous_parameters = parameters
     prev_total_cost = 0.0
 
+    # check plotter
+    if plotter is None:
+        if (
+            isinstance(model, SolveModel)
+            and model.exp_ops is not None
+            and len(model.exp_ops) > 0
+        ):
+            plotter = DefaultPlotter()
+        else:
+            plotter = Plotter([plot_fft, plot_controls])
+
     @partial(jax.jit, static_argnames=('_method', '_gradient', '_options'))
     def step(
         _parameters: ArrayLike | dict,
@@ -126,8 +137,8 @@ def optimize(
     try:  # trick for catching keyboard interrupt
         for epoch in range(opt_options['epochs']):
             epoch_start_time = time.time()
-            parameters, grads, opt_state, aux = step(
-                parameters, costs, model, opt_state, method, gradient, dq_options
+            parameters, grads, opt_state, aux = jax.block_until_ready(
+                step(parameters, costs, model, opt_state, method, gradient, dq_options)
             )
             elapsed_time = np.around(time.time() - epoch_start_time, decimals=3)
             total_cost, cost_values, terminate_for_cost, expects = aux
@@ -143,6 +154,7 @@ def optimize(
                     print('\n')
                 else:
                     print(costs, cost_values[0])
+
             if filepath is not None:
                 data_dict = {
                     'cost_values': jnp.asarray(cost_values),

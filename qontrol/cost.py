@@ -380,11 +380,11 @@ class CoherentInfidelity(Cost):
             # anything different from the incoherent definition of the infidelity, since
             # the trace is always real and positive. Included here only for
             # completeness.
-            overlaps_avg = jnp.mean(jnp.squeeze(overlaps), axis=-1)
+            overlaps_avg = jnp.mean(overlaps, axis=-1)
             fid = jnp.mean(jnp.abs(overlaps_avg))
         else:
             # average over states before squaring
-            overlaps_avg = jnp.mean(jnp.squeeze(overlaps), axis=-1)
+            overlaps_avg = jnp.mean(jnp.squeeze(overlaps, axis=[-1, -2]), axis=-1)
             # average over any remaining batch dimensions
             fid = jnp.mean(jnp.abs(overlaps_avg * jnp.conj(overlaps_avg)))
         infid = 1 - fid
@@ -401,7 +401,7 @@ class PropagatorInfidelity(Cost):
         H: TimeQArray,  # noqa ARG002
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
-        dim = jnp.prod(*result.final_propagator.dims)
+        dim = jnp.prod(jnp.array(result.final_propagator.dims))
         overlap = (self.target_unitary.dag() @ result.final_propagator).trace() / dim
         infid = 1 - jnp.mean(jnp.abs(overlap) ** 2)
         cost = self.cost_multiplier * infid

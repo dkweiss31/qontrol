@@ -5,7 +5,7 @@ from collections.abc import Callable
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
-from dynamiqs.time_qarray import SummedTimeQArray, TimeQArray
+from dynamiqs.time_qarray import ConstantTimeQArray, SummedTimeQArray, TimeQArray
 from IPython.display import clear_output
 from jax import Array
 from matplotlib.pyplot import Axes
@@ -49,7 +49,10 @@ def get_controls(H: TimeQArray, tsave: np.ndarray) -> list[np.ndarray]:
     controls = []
     if isinstance(H, SummedTimeQArray):
         for _H in H.timeqarrays:
-            controls.append(evaluate_at_tsave(_H))
+            if isinstance(_H, ConstantTimeQArray):
+                controls.insert(0, evaluate_at_tsave(_H))
+            else:
+                controls.append(evaluate_at_tsave(_H))
     else:
         controls.append(evaluate_at_tsave(H))
     return controls
@@ -65,9 +68,9 @@ def plot_controls(
     controls = get_controls(H, tsave)
     H_labels = [f'$H_{idx}$' for idx in range(len(controls))]
     for idx, control in enumerate(controls):
-        ax.plot(tsave, np.real(control) / 2 / np.pi, label=H_labels[idx])
+        ax.plot(tsave, np.real(control), label=H_labels[idx])
     ax.legend(loc='lower right', framealpha=0.0)
-    ax.set_ylabel('pulse amplitude [GHz]')
+    ax.set_ylabel('pulse amplitude')
     ax.set_xlabel('time [ns]')
     return ax
 
@@ -100,9 +103,10 @@ def plot_expects(
     ax.set_facecolor('none')
     tsave = model.tsave_function(parameters)
     # plot all expectation values by default
-    expect_idxs = np.ndindex(*expects.shape[:-1])
-    for expect_idx in expect_idxs:
-        ax.plot(tsave, np.real(expects[tuple(expect_idx)]))
+    if expects is not None:
+        expect_idxs = np.ndindex(*expects.shape[:-1])
+        for expect_idx in expect_idxs:
+            ax.plot(tsave, np.real(expects[tuple(expect_idx)]))
     ax.set_xlabel('time [ns]')
     ax.set_ylabel('expectation values')
     return ax
@@ -213,14 +217,15 @@ class Plotter:
         epoch: int,
     ):
         clear_output(wait=True)
-        n_rows = np.ceil(self.n_plots / 4).astype(int)
-        fig, axes = plt.subplots(n_rows, 4, figsize=(16, n_rows * 4))
+        n_col = 4 if self.n_plots >= 4 else self.n_plots
+        n_rows = np.ceil(self.n_plots / n_col).astype(int)
+        fig, axes = plt.subplots(n_rows, n_col, figsize=(n_col * 4, n_rows * 4))
         if n_rows == 1:
             axes = axes[None]
         fig.patch.set_alpha(0.1)
         axes[0, 0] = plot_costs(axes[0, 0], costs, epoch, cost_values_over_epochs)
         for plot_idx in range(self.n_plots - 1):
-            row_idx, col_idx = np.unravel_index(1 + plot_idx, (n_rows, 4))
+            row_idx, col_idx = np.unravel_index(1 + plot_idx, (n_rows, n_col))
             axes[row_idx, col_idx] = self.plotting_functions[plot_idx](
                 axes[row_idx, col_idx], expects, model, parameters
             )
