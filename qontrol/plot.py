@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-import jax
 import matplotlib.pyplot as plt
 import numpy as np
 from dynamiqs.time_qarray import ConstantTimeQArray, SummedTimeQArray, TimeQArray
@@ -43,7 +42,7 @@ def get_controls(H: TimeQArray, tsave: np.ndarray) -> list[np.ndarray]:
 
     def evaluate_at_tsave(_H: TimeQArray) -> np.ndarray:
         if not isinstance(_H, ConstantTimeQArray):
-            return np.asarray(jax.vmap(_H.prefactor)(tsave))
+            return _H.prefactor(tsave)
         return np.zeros_like(tsave)
 
     controls = []
@@ -180,7 +179,7 @@ def custom_plotter(plotting_functions: list[Callable]) -> Plotter:
                 H_c = dq.pwc(tsave, control, H1s[idx])
                 ax.plot(
                     finer_tsave,
-                    np.real(jax.vmap(H_c.prefactor)(finer_tsave)) / 2 / np.pi,
+                    np.real(H_c.prefactor(finer_tsave)) / 2 / np.pi,
                     label=H1_labels[idx],
                 )
             ax.legend(loc='lower right', framealpha=0.0)
