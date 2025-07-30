@@ -221,8 +221,7 @@ def loss(
 ) -> [float, Array]:
     result, H = model(parameters, method, gradient, dq_options)
     cost_values, terminate = zip(*costs(result, H, parameters), strict=True)
-    total_cost = jax.tree.reduce(jnp.add, cost_values)
-    total_cost = jnp.log(jnp.sum(jnp.asarray(total_cost)))
+    total_cost = jnp.log(jax.tree.reduce(jnp.add, cost_values))
     expects = result.expects if hasattr(result, 'expects') else None
     return total_cost, (total_cost, cost_values, terminate, expects)
 
