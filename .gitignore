@@ -1,0 +1,42 @@
+# python's bytecode compiled files
+__pycache__/
+*.pyc
+
+# python virtual environments
+venv
+
+# distribution / packaging
+*.egg-info/
+build/
+dist/
+
+# IDE settings directory
+.idea/
+.vscode/
+
+# macOS specific
+.DS_Store
+
+# Jupyter Notebook backups
+.ipynb_checkpoints/
+
+# pyenv local Python version
+.python-version
+
+# pytest cache
+.pytest_cache/
+
+# mkdocs build files
+site/
+
+# doctest generated figures
+docs/figs_code/**
+!docs/figs_code/.gitkeep
+docs/figs_docs/**
+!docs/figs_docs/.gitkeep
+
+# temporary directiry
+.tmp/**
+
+# uv lock file
+uv.lock
