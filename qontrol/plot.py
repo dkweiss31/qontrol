@@ -42,7 +42,7 @@ def get_controls(H: TimeQArray, tsave: np.ndarray) -> list[np.ndarray]:
     """Extract the Hamiltonian prefactors at the supplied times."""
 
     def evaluate_at_tsave(_H: TimeQArray) -> np.ndarray:
-        if hasattr(_H, 'prefactor'):
+        if not isinstance(_H, ConstantTimeQArray):
             return np.asarray(jax.vmap(_H.prefactor)(tsave))
         return np.zeros_like(tsave)
 

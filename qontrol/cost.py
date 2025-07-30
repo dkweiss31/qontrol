@@ -6,7 +6,7 @@ import jax.tree_util as jtu
 from jax.nn import relu
 from dynamiqs import asqarray, isket, QArray, QArrayLike, TimeQArray
 from dynamiqs.result import PropagatorResult, SolveResult
-from dynamiqs.time_qarray import SummedTimeQArray
+from dynamiqs.time_qarray import SummedTimeQArray, ConstantTimeQArray
 from jax import Array, vmap
 
 
@@ -433,8 +433,8 @@ class ControlCost(Cost):
         self, result: SolveResult, H: TimeQArray, func: callable
     ) -> Array:
         def _evaluate_at_tsave(_H: TimeQArray) -> Array:
-            if hasattr(_H, 'prefactor'):
-                return jnp.sum(func(vmap(_H.prefactor)(result.tsave)))
+            if not isinstance(_H, ConstantTimeQArray):
+                return jnp.sum(func(_H.prefactor(result.tsave)))
             return jnp.array(0.0)
 
         if isinstance(H, SummedTimeQArray):
