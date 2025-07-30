@@ -100,7 +100,9 @@ def propagator_infidelity(
         _(PropagatorInfidelity)_: Callable object that returns the propagator infidelity
             and whether the infidelity is below the target value.
     """
-    return PropagatorInfidelity(cost_multiplier, target_cost, asqarray(target_unitary))
+    target_unitary = asqarray(target_unitary)
+    dim = jnp.prod(jnp.array(target_unitary.dims))
+    return PropagatorInfidelity(cost_multiplier, target_cost, target_unitary, dim)
 
 
 def forbidden_states(
@@ -394,6 +396,7 @@ class CoherentInfidelity(Cost):
 
 class PropagatorInfidelity(Cost):
     target_unitary: QArray
+    dim: int
 
     def __call__(
         self,
@@ -401,8 +404,7 @@ class PropagatorInfidelity(Cost):
         H: TimeQArray,  # noqa ARG002
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
-        dim = jnp.prod(jnp.array(result.final_propagator.dims))
-        overlap = (self.target_unitary.dag() @ result.final_propagator).trace() / dim
+        overlap = (self.target_unitary.dag() @ result.final_propagator).trace() / self.dim
         infid = 1 - jnp.mean(jnp.abs(overlap) ** 2)
         cost = self.cost_multiplier * infid
         return ((cost, cost < self.target_cost),)
