@@ -37,6 +37,7 @@ default_options = {
     'epochs': 2000,
     'plot': True,
     'plot_period': 30,
+    'save_period': 30,
     'xtol': 1e-8,
     'ftol': 1e-8,
     'gtol': 1e-8,
@@ -103,9 +104,10 @@ def optimize(
     epoch_times = []
     previous_parameters = parameters
     prev_total_cost = 0.0
+    last_saved_epoch = -1
 
-    # check plotter
-    if plotter is None:
+    # Initialize plotter if needed
+    if plotter is None and opt_options['plot']:
         if (
             isinstance(model, SolveModel)
             and model.exp_ops is not None
@@ -144,6 +146,8 @@ def optimize(
             total_cost, cost_values, terminate_for_cost, expects = aux
             cost_values_over_epochs.append(cost_values)
             epoch_times.append(elapsed_time)
+            
+            # Print updated costs
             if opt_options['verbose']:
                 print(f'epoch: {epoch}, elapsed_time: {elapsed_time} s; ')
                 if isinstance(costs, SummedCost):
@@ -155,21 +159,29 @@ def optimize(
                 else:
                     print(costs, cost_values[0])
 
-            if filepath is not None:
+            # Save and/or plot
+            if filepath is not None and epoch % opt_options['save_period'] == 0 and epoch > 0:
+                if opt_options['verbose']:
+                    print(f'... saving data; from {last_saved_epoch+1} to {epoch}\n')
+                cost_since_last_saved = jnp.asarray(cost_values_over_epochs)[last_saved_epoch+1:]
                 data_dict = {
-                    'cost_values': jnp.asarray(cost_values),
-                    'total_cost': total_cost,
+                    'cost_values': cost_since_last_saved,
+                    'total_cost': jnp.sum(cost_since_last_saved, axis=-1),
                 }
                 if type(parameters) is dict:
-                    data_dict = data_dict | parameters
+                    for key, val in parameters.items():
+                        data_dict[key] = val[None, ...] # extra axis ensures that they're stacked
                 else:
-                    data_dict['parameters'] = parameters
+                    data_dict['parameters'] = parameters[None, ...] # just as above
                 append_to_h5(filepath, data_dict, opt_options)
-            if opt_options['plot'] and epoch % opt_options['plot_period'] == 0:
+                last_saved_epoch = epoch
+
+            if opt_options['plot'] and epoch % opt_options['plot_period'] == 0 and epoch > 0:
                 plotter.update_plots(
                     parameters, costs, model, expects, cost_values_over_epochs, epoch
                 )
-            # early termination
+
+            # Check for early termination
             if not opt_options['ignore_termination']:
                 termination_key = _terminate_early(
                     grads,
@@ -183,10 +195,30 @@ def optimize(
                 )
                 if termination_key != -1:
                     break
+
+            # Update parameters and costs
             previous_parameters = parameters
             prev_total_cost = total_cost
+            
     except KeyboardInterrupt:
         pass
+    
+    # Final batch of save and/or plot
+    if filepath is not None:
+        if opt_options['verbose']:
+            print(f'... saving data; from {last_saved_epoch+1} to {epoch}')
+
+        cost_since_last_saved = jnp.asarray(cost_values_over_epochs)[last_saved_epoch+1:]
+        data_dict = {
+            'cost_values': cost_since_last_saved,
+            'total_cost': jnp.sum(cost_since_last_saved, axis=-1),
+        }
+        if type(parameters) is dict:
+            data_dict = data_dict | parameters
+        else:
+            data_dict['parameters'] = parameters
+        append_to_h5(filepath, data_dict, opt_options)
+    
     if opt_options['plot']:
         plotter.update_plots(
             parameters,
