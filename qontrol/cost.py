@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import equinox as eqx
-import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
+from jax.nn import relu
 from dynamiqs import asqarray, isket, QArray, QArrayLike, TimeQArray
 from dynamiqs.result import PropagatorResult, SolveResult
 from dynamiqs.time_qarray import SummedTimeQArray
@@ -163,7 +163,7 @@ def forbidden_states(
 
 
 def control_area(
-    cost_multiplier: float = 1.0, target_cost: float = 0.0
+    threshold: float = 0.0, cost_multiplier: float = 1.0, target_cost: float = 0.0
 ) -> ControlCostArea:
     r"""Control area cost function.
 
@@ -185,7 +185,7 @@ def control_area(
         _(ControlArea)_: Callable object that returns the control-area cost
             and whether the cost is below the target value.
     """
-    return ControlCostArea(cost_multiplier, target_cost)
+    return ControlCostArea(cost_multiplier, target_cost, threshold)
 
 
 def control_norm(
@@ -446,7 +446,7 @@ class ControlCost(Cost):
         else:
             control_val = _evaluate_at_tsave(H)
 
-        return self.cost_multiplier * control_val
+        return control_val
 
 
 class ControlCostNorm(ControlCost):
@@ -458,22 +458,24 @@ class ControlCostNorm(ControlCost):
         H: TimeQArray,
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
-        cost = jnp.abs(
-            self.evaluate_controls(
-                result, H, lambda x: jax.nn.relu(jnp.abs(x) - self.threshold)
+        control_val = self.evaluate_controls(
+                result, H, lambda x: relu(jnp.abs(x) - self.threshold)
             )
-        )
+        cost = jnp.abs(self.cost_multiplier * control_val)
         return ((cost, cost < self.target_cost),)
 
 
 class ControlCostArea(ControlCost):
+    threshold: float
     def __call__(
         self,
         result: SolveResult,
         H: TimeQArray,
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
-        cost = jnp.abs(self.evaluate_controls(result, H, lambda x: x))
+        dt = result.tsave[1]-result.tsave[0]
+        control_area = self.evaluate_controls(result, H, lambda x: x*dt)
+        cost = self.cost_multiplier * relu(jnp.abs(control_area)-self.threshold)
         return ((cost, cost < self.target_cost),)
 
 
