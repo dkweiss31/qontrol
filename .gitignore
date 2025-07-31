@@ -1,6 +1,7 @@
 # python's bytecode compiled files
 __pycache__/
 *.pyc
+*.pyo
 
 # python virtual environments
 venv
@@ -29,14 +30,8 @@ dist/
 # mkdocs build files
 site/
 
-# doctest generated figures
-docs/figs_code/**
-!docs/figs_code/.gitkeep
-docs/figs_docs/**
-!docs/figs_docs/.gitkeep
-
-# temporary directiry
+# temporary directory
 .tmp/**
 
-# uv lock file
-uv.lock
+# Ruff cache
+.ruff_cache
