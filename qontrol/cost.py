@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import equinox as eqx
-import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
 from dynamiqs import asqarray, isket, QArray, QArrayLike, TimeQArray
 from dynamiqs.result import PropagatorResult, SolveResult
-from dynamiqs.time_qarray import SummedTimeQArray
-from jax import Array, vmap
+from dynamiqs.time_qarray import ConstantTimeQArray, SummedTimeQArray
+from jax import Array
+from jax.nn import relu
 
 
 def incoherent_infidelity(
@@ -100,7 +100,9 @@ def propagator_infidelity(
         _(PropagatorInfidelity)_: Callable object that returns the propagator infidelity
             and whether the infidelity is below the target value.
     """
-    return PropagatorInfidelity(cost_multiplier, target_cost, asqarray(target_unitary))
+    target_unitary = asqarray(target_unitary)
+    dim = jnp.prod(jnp.array(target_unitary.dims))
+    return PropagatorInfidelity(cost_multiplier, target_cost, target_unitary, dim)
 
 
 def forbidden_states(
@@ -163,7 +165,7 @@ def forbidden_states(
 
 
 def control_area(
-    cost_multiplier: float = 1.0, target_cost: float = 0.0
+    threshold: float = 0.0, cost_multiplier: float = 1.0, target_cost: float = 0.0
 ) -> ControlCostArea:
     r"""Control area cost function.
 
@@ -185,7 +187,7 @@ def control_area(
         _(ControlArea)_: Callable object that returns the control-area cost
             and whether the cost is below the target value.
     """
-    return ControlCostArea(cost_multiplier, target_cost)
+    return ControlCostArea(cost_multiplier, target_cost, threshold)
 
 
 def control_norm(
@@ -394,6 +396,7 @@ class CoherentInfidelity(Cost):
 
 class PropagatorInfidelity(Cost):
     target_unitary: QArray
+    dim: int
 
     def __call__(
         self,
@@ -401,8 +404,9 @@ class PropagatorInfidelity(Cost):
         H: TimeQArray,  # noqa ARG002
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
-        dim = jnp.prod(jnp.array(result.final_propagator.dims))
-        overlap = (self.target_unitary.dag() @ result.final_propagator).trace() / dim
+        overlap = (
+            self.target_unitary.dag() @ result.final_propagator
+        ).trace() / self.dim
         infid = 1 - jnp.mean(jnp.abs(overlap) ** 2)
         cost = self.cost_multiplier * infid
         return ((cost, cost < self.target_cost),)
@@ -432,9 +436,11 @@ class ControlCost(Cost):
     def evaluate_controls(
         self, result: SolveResult, H: TimeQArray, func: callable
     ) -> Array:
+        dt = result.tsave[1] - result.tsave[0]
+
         def _evaluate_at_tsave(_H: TimeQArray) -> Array:
-            if hasattr(_H, 'prefactor'):
-                return jnp.sum(func(vmap(_H.prefactor)(result.tsave)))
+            if not isinstance(_H, ConstantTimeQArray):
+                return jnp.sum(func(_H.prefactor(result.tsave))) * dt
             return jnp.array(0.0)
 
         if isinstance(H, SummedTimeQArray):
@@ -446,7 +452,7 @@ class ControlCost(Cost):
         else:
             control_val = _evaluate_at_tsave(H)
 
-        return self.cost_multiplier * control_val
+        return control_val
 
 
 class ControlCostNorm(ControlCost):
@@ -458,22 +464,24 @@ class ControlCostNorm(ControlCost):
         H: TimeQArray,
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
-        cost = jnp.abs(
-            self.evaluate_controls(
-                result, H, lambda x: jax.nn.relu(jnp.abs(x) - self.threshold)
-            )
+        control_val = self.evaluate_controls(
+            result, H, lambda x: relu(jnp.abs(x) - self.threshold)
         )
+        cost = jnp.abs(self.cost_multiplier * control_val)
         return ((cost, cost < self.target_cost),)
 
 
 class ControlCostArea(ControlCost):
+    threshold: float
+
     def __call__(
         self,
         result: SolveResult,
         H: TimeQArray,
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
-        cost = jnp.abs(self.evaluate_controls(result, H, lambda x: x))
+        control_area = self.evaluate_controls(result, H, lambda x: x)
+        cost = self.cost_multiplier * relu(jnp.abs(control_area) - self.threshold)
         return ((cost, cost < self.target_cost),)
 
 
