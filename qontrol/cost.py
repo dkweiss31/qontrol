@@ -434,9 +434,11 @@ class ControlCost(Cost):
     def evaluate_controls(
         self, result: SolveResult, H: TimeQArray, func: callable
     ) -> Array:
+        dt = result.tsave[1]-result.tsave[0]
+
         def _evaluate_at_tsave(_H: TimeQArray) -> Array:
             if not isinstance(_H, ConstantTimeQArray):
-                return jnp.sum(func(_H.prefactor(result.tsave)))
+                return jnp.sum(func(_H.prefactor(result.tsave))) * dt
             return jnp.array(0.0)
 
         if isinstance(H, SummedTimeQArray):
@@ -469,15 +471,16 @@ class ControlCostNorm(ControlCost):
 
 class ControlCostArea(ControlCost):
     threshold: float
+
     def __call__(
         self,
         result: SolveResult,
         H: TimeQArray,
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
-        dt = result.tsave[1]-result.tsave[0]
-        control_area = self.evaluate_controls(result, H, lambda x: x*dt)
-        cost = self.cost_multiplier * relu(jnp.abs(control_area)-self.threshold)
+        
+        control_area = self.evaluate_controls(result, H, lambda x: x)
+        cost = self.cost_multiplier * relu(jnp.abs(control_area) - self.threshold)
         return ((cost, cost < self.target_cost),)
 
 
