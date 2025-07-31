@@ -3,11 +3,11 @@ from __future__ import annotations
 import equinox as eqx
 import jax.numpy as jnp
 import jax.tree_util as jtu
-from jax.nn import relu
 from dynamiqs import asqarray, isket, QArray, QArrayLike, TimeQArray
 from dynamiqs.result import PropagatorResult, SolveResult
-from dynamiqs.time_qarray import SummedTimeQArray, ConstantTimeQArray
-from jax import Array, vmap
+from dynamiqs.time_qarray import ConstantTimeQArray, SummedTimeQArray
+from jax import Array
+from jax.nn import relu
 
 
 def incoherent_infidelity(
@@ -404,7 +404,9 @@ class PropagatorInfidelity(Cost):
         H: TimeQArray,  # noqa ARG002
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
-        overlap = (self.target_unitary.dag() @ result.final_propagator).trace() / self.dim
+        overlap = (
+            self.target_unitary.dag() @ result.final_propagator
+        ).trace() / self.dim
         infid = 1 - jnp.mean(jnp.abs(overlap) ** 2)
         cost = self.cost_multiplier * infid
         return ((cost, cost < self.target_cost),)
@@ -434,7 +436,7 @@ class ControlCost(Cost):
     def evaluate_controls(
         self, result: SolveResult, H: TimeQArray, func: callable
     ) -> Array:
-        dt = result.tsave[1]-result.tsave[0]
+        dt = result.tsave[1] - result.tsave[0]
 
         def _evaluate_at_tsave(_H: TimeQArray) -> Array:
             if not isinstance(_H, ConstantTimeQArray):
@@ -463,8 +465,8 @@ class ControlCostNorm(ControlCost):
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
         control_val = self.evaluate_controls(
-                result, H, lambda x: relu(jnp.abs(x) - self.threshold)
-            )
+            result, H, lambda x: relu(jnp.abs(x) - self.threshold)
+        )
         cost = jnp.abs(self.cost_multiplier * control_val)
         return ((cost, cost < self.target_cost),)
 
@@ -478,7 +480,6 @@ class ControlCostArea(ControlCost):
         H: TimeQArray,
         parameters: dict | Array,  # noqa ARG002
     ) -> tuple[tuple[Array, Array]]:
-        
         control_area = self.evaluate_controls(result, H, lambda x: x)
         cost = self.cost_multiplier * relu(jnp.abs(control_area) - self.threshold)
         return ((cost, cost < self.target_cost),)

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-import matplotlib.pyplot as plt
 import jax.numpy as jnp
-from numpy import ndindex
+import matplotlib.pyplot as plt
 from dynamiqs.time_qarray import ConstantTimeQArray, SummedTimeQArray, TimeQArray
 from IPython.display import clear_output
 from jax import Array
 from matplotlib.pyplot import Axes
+from numpy import ndindex
 
 from .cost import Cost, SummedCost
 from .model import Model
@@ -94,6 +94,7 @@ def plot_fft(
     ax.set_ylabel('fourier amplitude')
     ax.grid(True)
     return ax
+
 
 def plot_expects(
     ax: Axes, expects: Array | None, model: Model, parameters: Array | dict
