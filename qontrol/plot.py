@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-import jax.numpy as jnp
+import numpy as np
 import matplotlib.pyplot as plt
 from dynamiqs.time_qarray import ConstantTimeQArray, SummedTimeQArray, TimeQArray
 from IPython.display import clear_output
 from jax import Array
 from matplotlib.pyplot import Axes
-from numpy import ndindex
 
 from .cost import Cost, SummedCost
 from .model import Model
@@ -19,15 +18,15 @@ def plot_costs(
 ) -> Axes:
     """Plot the evolution of the cost function values."""
     ax.set_facecolor('none')
-    epoch_range = jnp.arange(epoch + 1)
-    cost_values_over_epochs = jnp.asarray(cost_values_over_epochs).T
+    epoch_range = np.arange(epoch + 1)
+    cost_values_over_epochs = np.asarray(cost_values_over_epochs).T
     if isinstance(costs, SummedCost):
         for _cost, _cost_value in zip(
             costs.costs, cost_values_over_epochs, strict=True
         ):
             ax.plot(epoch_range, _cost_value, label=str(_cost))
         ax.plot(
-            epoch_range, jnp.sum(cost_values_over_epochs, axis=0), label='total cost'
+            epoch_range, np.sum(cost_values_over_epochs, axis=0), label='total cost'
         )
     else:
         ax.plot(epoch_range, cost_values_over_epochs[0], label=str(costs))
@@ -38,13 +37,13 @@ def plot_costs(
     return ax
 
 
-def get_controls(H: TimeQArray, tsave: Array) -> list[Array]:
+def get_controls(H: TimeQArray, tsave: np.ndarray) -> list[np.ndarray]:
     """Extract the Hamiltonian prefactors at the supplied times."""
 
-    def evaluate_at_tsave(_H: TimeQArray) -> Array:
+    def evaluate_at_tsave(_H: TimeQArray) -> np.ndarray:
         if not isinstance(_H, ConstantTimeQArray):
             return _H.prefactor(tsave)
-        return jnp.zeros_like(tsave)
+        return np.zeros_like(tsave)
 
     controls = []
     if isinstance(H, SummedTimeQArray):
@@ -68,7 +67,7 @@ def plot_controls(
     controls = get_controls(H, tsave)
     H_labels = [f'$H_{idx}$' for idx in range(len(controls))]
     for idx, control in enumerate(controls):
-        ax.plot(tsave, jnp.real(control), label=H_labels[idx])
+        ax.plot(tsave, np.real(control), label=H_labels[idx])
     ax.legend(loc='lower right', framealpha=0.0)
     ax.set_ylabel('pulse amplitude')
     ax.set_xlabel('time [ns]')
@@ -84,11 +83,11 @@ def plot_fft(
     tsave = model.tsave_function(parameters)
     controls = get_controls(H, tsave)
     for control_idx, control in enumerate(controls):
-        y_fft = jnp.fft.fft(control)
+        y_fft = np.fft.fft(control)
         n = len(control)
         dt = tsave[1] - tsave[0]
-        freqs = jnp.fft.fftfreq(n, dt)
-        ax.plot(freqs[: n // 2], jnp.abs(y_fft[: n // 2]), label=f'$H_{control_idx}$')
+        freqs = np.fft.fftfreq(n, dt)
+        ax.plot(freqs[: n // 2], np.abs(y_fft[: n // 2]), label=f'$H_{control_idx}$')
     ax.legend(loc='lower right', framealpha=0.0)
     ax.set_xlabel('frequency [GHz]')
     ax.set_ylabel('fourier amplitude')
@@ -104,9 +103,9 @@ def plot_expects(
     tsave = model.tsave_function(parameters)
     # plot all expectation values by default
     if expects is not None:
-        expect_idxs = ndindex(*expects.shape[:-1])
+        expect_idxs = np.ndindex(*expects.shape[:-1])
         for expect_idx in expect_idxs:
-            ax.plot(tsave, jnp.real(expects[tuple(expect_idx)]))
+            ax.plot(tsave, np.real(expects[tuple(expect_idx)]))
     ax.set_xlabel('time [ns]')
     ax.set_ylabel('expectation values')
     return ax
@@ -143,7 +142,7 @@ def custom_plotter(plotting_functions: list[Callable]) -> Plotter:
         ```python
         import dynamiqs as dq
         import jax.numpy as jnp
-        from numpy import ndindex
+        import numpy as np
         import qontrol as ql
         from functools import partial
 
@@ -160,9 +159,9 @@ def custom_plotter(plotting_functions: list[Callable]) -> Plotter:
         ) -> Axes:
             ax.set_facecolor('none')
             tsave = model.tsave_function(parameters)
-            batch_idxs = ndindex(*expects.shape[:-3])
+            batch_idxs = np.ndindex(*expects.shape[:-3])
             for batch_idx in batch_idxs:
-                ax.plot(tsave, jnp.real(expects[tuple(batch_idx), which, 0]))
+                ax.plot(tsave, np.real(expects[tuple(batch_idx), which, 0]))
             ax.set_xlabel('time [ns]')
             ax.set_ylabel(
                 f'population in $|1\\rangle$ for initial state $|{which}\\rangle$'
@@ -175,12 +174,12 @@ def custom_plotter(plotting_functions: list[Callable]) -> Plotter:
         ) -> Axes:
             ax.set_facecolor('none')
             tsave = model.tsave_function(parameters)
-            finer_tsave = jnp.linspace(0.0, tsave[-1], 10 * len(tsave))
+            finer_tsave = np.linspace(0.0, tsave[-1], 10 * len(tsave))
             for idx, control in enumerate(parameters):
                 H_c = dq.pwc(tsave, control, H1s[idx])
                 ax.plot(
                     finer_tsave,
-                    jnp.real(H_c.prefactor(finer_tsave)) / 2 / jnp.pi,
+                    np.real(H_c.prefactor(finer_tsave)) / 2 / np.pi,
                     label=H1_labels[idx],
                 )
             ax.legend(loc='lower right', framealpha=0.0)
@@ -218,14 +217,14 @@ class Plotter:
     ):
         clear_output(wait=True)
         n_col = 4 if self.n_plots >= 4 else self.n_plots
-        n_rows = jnp.ceil(self.n_plots / n_col).astype(int)
+        n_rows = np.ceil(self.n_plots / n_col).astype(int)
         fig, axes = plt.subplots(n_rows, n_col, figsize=(n_col * 4, n_rows * 4))
         if n_rows == 1:
             axes = axes[None]
         fig.patch.set_alpha(0.1)
         axes[0, 0] = plot_costs(axes[0, 0], costs, epoch, cost_values_over_epochs)
         for plot_idx in range(self.n_plots - 1):
-            row_idx, col_idx = jnp.unravel_index(1 + plot_idx, (n_rows, n_col))
+            row_idx, col_idx = np.unravel_index(1 + plot_idx, (n_rows, n_col))
             axes[row_idx, col_idx] = self.plotting_functions[plot_idx](
                 axes[row_idx, col_idx], expects, model, parameters
             )

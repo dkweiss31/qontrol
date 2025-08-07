@@ -6,6 +6,7 @@ from functools import partial
 import dynamiqs as dq
 import jax
 import jax.numpy as jnp
+import numpy as np
 import optax
 from dynamiqs.gradient import Gradient
 from dynamiqs.method import Method, Tsit5
@@ -139,7 +140,7 @@ def optimize(
             parameters, grads, opt_state, aux = jax.block_until_ready(
                 step(parameters, costs, model, opt_state, method, gradient, dq_options)
             )
-            elapsed_time = jnp.round(time.time() - epoch_start_time, decimals=3)
+            elapsed_time = np.around(time.time() - epoch_start_time, decimals=3)
             total_cost, cost_values, terminate_for_cost, expects = aux
             cost_values_over_epochs.append(cost_values)
             epoch_times.append(elapsed_time)
@@ -156,7 +157,7 @@ def optimize(
 
             if filepath is not None:
                 data_dict = {
-                    'cost_values': jnp.asarray(cost_values),
+                    'cost_values': np.asarray(cost_values),
                     'total_cost': total_cost,
                 }
                 if type(parameters) is dict:
@@ -196,15 +197,14 @@ def optimize(
             len(cost_values_over_epochs) - 1,
         )
 
-    epoch_times = jnp.array(epoch_times)
     if not opt_options['ignore_termination']:
         print(TERMINATION_MESSAGES[termination_key])
     print(
         f'optimization terminated after {epoch} epochs; \n'
         f'average epoch time (excluding jit) of '
-        f'{jnp.round(jnp.mean(epoch_times[1:]), decimals=5)} s; \n'
-        f'max epoch time of {jnp.max(epoch_times[1:])} s; \n'
-        f'min epoch time of {jnp.min(epoch_times[1:])} s'
+        f'{np.around(np.mean(epoch_times[1:]), decimals=5)} s; \n'
+        f'max epoch time of {np.max(epoch_times[1:])} s; \n'
+        f'min epoch time of {np.min(epoch_times[1:])} s'
     )
     if opt_options['verbose'] and filepath is not None:
         print(f'results saved to {filepath}')
