@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from dynamiqs.time_qarray import ConstantTimeQArray, SummedTimeQArray, TimeQArray
 from IPython.display import clear_output
 from jax import Array
