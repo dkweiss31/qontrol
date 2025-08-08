@@ -157,7 +157,7 @@ def optimize(
 
             if filepath is not None:
                 data_dict = {
-                    'cost_values': jnp.asarray(cost_values),
+                    'cost_values': np.asarray(cost_values),
                     'total_cost': total_cost,
                 }
                 if type(parameters) is dict:
@@ -196,6 +196,7 @@ def optimize(
             cost_values_over_epochs,
             len(cost_values_over_epochs) - 1,
         )
+
     if not opt_options['ignore_termination']:
         print(TERMINATION_MESSAGES[termination_key])
     print(
@@ -220,8 +221,7 @@ def loss(
 ) -> [float, Array]:
     result, H = model(parameters, method, gradient, dq_options)
     cost_values, terminate = zip(*costs(result, H, parameters), strict=True)
-    total_cost = jax.tree.reduce(jnp.add, cost_values)
-    total_cost = jnp.log(jnp.sum(jnp.asarray(total_cost)))
+    total_cost = jnp.log(jax.tree.reduce(jnp.add, cost_values))
     expects = result.expects if hasattr(result, 'expects') else None
     return total_cost, (total_cost, cost_values, terminate, expects)
 
@@ -255,7 +255,7 @@ def _terminate_early(
     if dg < opt_options['gtol']:
         termination_key = 1
     # ftol
-    dF = np.abs(total_cost - prev_total_cost)
+    dF = jnp.abs(total_cost - prev_total_cost)
     if dF < opt_options['ftol'] * total_cost:
         termination_key = 2
     if dx < opt_options['xtol'] * (opt_options['xtol'] + dx):
@@ -270,5 +270,5 @@ def _terminate_early(
 
 def _norm(x: Array) -> Array:
     if x.shape == ():
-        return np.abs(x)
-    return np.linalg.norm(x, ord=np.inf)
+        return jnp.abs(x)
+    return jnp.max(jnp.abs(x))
