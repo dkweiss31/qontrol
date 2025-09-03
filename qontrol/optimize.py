@@ -202,13 +202,16 @@ def optimize(
             'cost_values': np.array(cost_values_over_epochs[::save_period]),
             'total_costs': np.array(total_cost_over_epochs[::save_period]),
         }
+
+        # Unpack and save parameters. Ignore the first entry (i.e. the initial seed.)
+        # This should make the parameter indices consistent with the cost indices.
         if type(parameters) is dict:
             for key in parameters:
                 data_dict[key] = np.array(
-                    [params[key] for params in parameters_over_epochs[::save_period]]
+                    [params[key] for params in parameters_over_epochs[1::save_period]]
                 )
         else:
-            data_dict['parameters'] = np.array(parameters_over_epochs[::save_period])
+            data_dict['parameters'] = np.array(parameters_over_epochs[1::save_period])
         append_to_h5(filepath, data_dict, opt_options)
 
     # Final plot update
