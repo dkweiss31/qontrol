@@ -86,6 +86,7 @@ def optimize(
             plot _(bool)_: Whether to plot the results during the optimization (for the
                 epochs where results are plotted, necessarily suffer a time penalty).
             plot_period _(int)_: If plot is True, plot every plot_period.
+            save_period _(int)_: If filepath is provided, save every save_period. Defaults to 1.
             xtol _(float)_: Defaults to 1e-8, terminate the optimization if the parameters
                 are not being updated
             ftol _(float)_: Defaults to 1e-8, terminate the optimization if the cost
@@ -100,11 +101,10 @@ def optimize(
     # initialize
     opt_options = {**default_options, **(opt_options or {})}
     opt_state = optimizer.init(parameters)
+    total_cost_over_epochs = []
     cost_values_over_epochs = []
     epoch_times = []
-    previous_parameters = parameters
-    prev_total_cost = 0.0
-    last_saved_epoch = -1
+    parameters_over_epochs = [parameters]
 
     # Initialize plotter if needed
     if plotter is None and opt_options['plot']:
@@ -138,16 +138,21 @@ def optimize(
         print(f'saving results to {filepath}')
     try:  # trick for catching keyboard interrupt
         for epoch in range(opt_options['epochs']):
+            # Run and time one epoch
             epoch_start_time = time.time()
             parameters, grads, opt_state, aux = jax.block_until_ready(
                 step(parameters, costs, model, opt_state, method, gradient, dq_options)
             )
             elapsed_time = np.around(time.time() - epoch_start_time, decimals=3)
+
+            # Unpack and record results
             total_cost, cost_values, terminate_for_cost, expects = aux
+            total_cost_over_epochs.append(total_cost)
             cost_values_over_epochs.append(cost_values)
             epoch_times.append(elapsed_time)
-            
-            # Print updated costs
+            parameters_over_epochs.append(parameters)
+
+            # Print
             if opt_options['verbose']:
                 print(f'epoch: {epoch}, elapsed_time: {elapsed_time} s; ')
                 if isinstance(costs, SummedCost):
@@ -159,24 +164,12 @@ def optimize(
                 else:
                     print(costs, cost_values[0])
 
-            # Save and/or plot
-            if filepath is not None and epoch % opt_options['save_period'] == 0 and epoch > 0:
-                if opt_options['verbose']:
-                    print(f'... saving data; from {last_saved_epoch+1} to {epoch}\n')
-                cost_since_last_saved = jnp.asarray(cost_values_over_epochs)[last_saved_epoch+1:]
-                data_dict = {
-                    'cost_values': cost_since_last_saved,
-                    'total_cost': jnp.sum(cost_since_last_saved, axis=-1),
-                }
-                if type(parameters) is dict:
-                    for key, val in parameters.items():
-                        data_dict[key] = val[None, ...] # extra axis ensures that they're stacked
-                else:
-                    data_dict['parameters'] = parameters[None, ...] # just as above
-                append_to_h5(filepath, data_dict, opt_options)
-                last_saved_epoch = epoch
-
-            if opt_options['plot'] and epoch % opt_options['plot_period'] == 0 and epoch > 0:
+            # Plot
+            if (
+                opt_options['plot']
+                and epoch % opt_options['plot_period'] == 0
+                and epoch > 0
+            ):
                 plotter.update_plots(
                     parameters, costs, model, expects, cost_values_over_epochs, epoch
                 )
@@ -186,9 +179,9 @@ def optimize(
                 termination_key = _terminate_early(
                     grads,
                     parameters,
-                    previous_parameters,
+                    parameters_over_epochs[-2],
                     total_cost,
-                    prev_total_cost,
+                    total_cost_over_epochs[-2] if epoch > 0 else 0.0,
                     terminate_for_cost,
                     epoch,
                     opt_options,
@@ -196,29 +189,29 @@ def optimize(
                 if termination_key != -1:
                     break
 
-            # Update parameters and costs
-            previous_parameters = parameters
-            prev_total_cost = total_cost
-            
     except KeyboardInterrupt:
         pass
-    
-    # Final batch of save and/or plot
+
+    # Save everything
     if filepath is not None:
         if opt_options['verbose']:
-            print(f'... saving data; from {last_saved_epoch+1} to {epoch}')
+            print(f'\nsaving data to {filepath}')
 
-        cost_since_last_saved = jnp.asarray(cost_values_over_epochs)[last_saved_epoch+1:]
+        save_period = opt_options.get('save_period', 1)
         data_dict = {
-            'cost_values': cost_since_last_saved,
-            'total_cost': jnp.sum(cost_since_last_saved, axis=-1),
+            'cost_values': np.array(cost_values_over_epochs[::save_period]),
+            'total_costs': np.array(total_cost_over_epochs[::save_period]),
         }
         if type(parameters) is dict:
-            data_dict = data_dict | parameters
+            for key in parameters:
+                data_dict[key] = np.array(
+                    [params[key] for params in parameters_over_epochs[::save_period]]
+                )
         else:
-            data_dict['parameters'] = parameters
+            data_dict['parameters'] = np.array(parameters_over_epochs[::save_period])
         append_to_h5(filepath, data_dict, opt_options)
-    
+
+    # Final plot update
     if opt_options['plot']:
         plotter.update_plots(
             parameters,
