@@ -119,7 +119,7 @@ def test_costs(infid_cost, opt_type, cost, nH, tmp_path):
         dq_options=dq_options,
     )
     opt_result, opt_H = model(opt_params, Tsit5(), None, dq_options)
-    cost_values, terminate = zip(*costs(opt_result, opt_H, opt_params), strict=True)
+    _, terminate = zip(*costs(opt_result, opt_H, opt_params), strict=True)
     assert all(terminate)
 
 
@@ -143,7 +143,7 @@ def test_reinitialize(tmp_path):
     data_dict, _ = extract_info_from_h5(filepath)
     opt_params = {'dp': data_dict['dp'][-1]}
     opt_result, opt_H = model(opt_params, Tsit5(), None, dq_options)
-    cost_values, terminate = zip(*costs(opt_result, opt_H, opt_params), strict=True)
+    _, terminate = zip(*costs(opt_result, opt_H, opt_params), strict=True)
     assert all(terminate)
 
 
@@ -325,7 +325,7 @@ def setup_coherent_system():
 @pytest.mark.parametrize('learning_rate', [1e-4])
 @pytest.mark.parametrize('target_cost', [1e-2])
 def test_gate_plot(learning_rate, target_cost, tmp_path):
-    H_pwc, tsave, init_drive_params, target_gate, Zt = setup_gate_system()
+    H_pwc, tsave, init_drive_params, target_gate, _Zt = setup_gate_system()
 
     model = sepropagator_model(H_pwc, tsave)
     cost = propagator_infidelity(target_unitary=target_gate, target_cost=target_cost)
@@ -377,5 +377,5 @@ def test_single_target_coherent(learning_rate, target_cost, tmp_path):
     )
 
     opt_result, opt_H = model(opt_params, dq.integrators.Expm(), None, dq_options)
-    cost_values, terminate = zip(*cost(opt_result, opt_H, opt_params), strict=True)
+    _, terminate = zip(*cost(opt_result, opt_H, opt_params), strict=True)
     assert all(terminate)
