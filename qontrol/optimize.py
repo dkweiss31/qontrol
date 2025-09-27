@@ -85,8 +85,8 @@ def optimize(
             epochs _(int)_: Number of optimization epochs.
             plot _(bool)_: Whether to plot the results during the optimization (for the
                 epochs where results are plotted, necessarily suffer a time penalty).
-            plot_period _(int)_: If plot is True, plot every plot_period.
-            save_period _(int)_: If filepath is provided, save every save_period. Defaults to 1.
+            plot_period _(int)_: If plot is True, plot every plot_period. Defaults to 30.
+            save_period _(int)_: If filepath is provided, save every save_period. Defaults to 30.
             xtol _(float)_: Defaults to 1e-8, terminate the optimization if the parameters
                 are not being updated
             ftol _(float)_: Defaults to 1e-8, terminate the optimization if the cost
