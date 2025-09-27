@@ -2,11 +2,16 @@ import diffrax as dx
 import dynamiqs as dq
 import jax.numpy as jnp
 import jax.random
+import matplotlib
+import numpy as np
 import optax
 import pytest
 from dynamiqs.method import Expm, Tsit5
 from jax import Array
 from scipy.stats import unitary_group
+
+
+matplotlib.use('Agg')
 
 from qontrol import (
     coherent_infidelity,
@@ -25,8 +30,8 @@ from qontrol import (
 from qontrol.cost import SummedCost
 
 
-def _filepath(path):
-    d = path / 'sub'
+def _filepath(path, suffix: str = ''):
+    d = path / f'sub{suffix}'
     d.mkdir()
     return d / 'tmp.h5py'
 
@@ -126,7 +131,7 @@ def test_reinitialize(tmp_path):
     model = sesolve_model(H_func, psi0, tsave)
     costs = coherent_infidelity(target_states, target_cost=0.01)
     optimizer = optax.adam(0.0001, b1=0.99, b2=0.99)
-    opt_params = optimize(
+    optimize(
         init_drive_params,
         costs,
         model,
@@ -136,9 +141,40 @@ def test_reinitialize(tmp_path):
         dq_options=dq_options,
     )
     data_dict, _ = extract_info_from_h5(filepath)
+    opt_params = {'dp': data_dict['dp'][-1]}
     opt_result, opt_H = model(opt_params, Tsit5(), None, dq_options)
     cost_values, terminate = zip(*costs(opt_result, opt_H, opt_params), strict=True)
     assert all(terminate)
+
+
+def test_save_period(tmp_path):
+    filepath_1 = _filepath(tmp_path, suffix='1')
+    optimizer_options_1 = {'epochs': 4000, 'plot': False, 'save_period': 1}
+    data_1 = _setup_and_run(filepath_1, optimizer_options_1)
+    filepath_21 = _filepath(tmp_path, suffix='21')
+    optimizer_options_21 = {'epochs': 4000, 'plot': False, 'save_period': 21}
+    data_21 = _setup_and_run(filepath_21, optimizer_options_21)
+    for key, val_1 in data_1.items():
+        assert np.allclose(val_1, data_21[key])
+
+
+def _setup_and_run(filepath: str, opt_options: dict):
+    H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc()
+    dq_options = dq.Options(progress_meter=None)
+    model = sesolve_model(H_func, psi0, tsave)
+    costs = coherent_infidelity(target_states, target_cost=0.01)
+    optimizer = optax.adam(0.0001, b1=0.99, b2=0.99)
+    optimize(
+        init_drive_params,
+        costs,
+        model,
+        filepath=filepath,
+        optimizer=optimizer,
+        opt_options=opt_options,
+        dq_options=dq_options,
+    )
+    data_dict, _ = extract_info_from_h5(filepath)
+    return data_dict
 
 
 @pytest.mark.parametrize('opt_type', ['sepropagator', 'mepropagator'])

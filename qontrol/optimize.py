@@ -104,7 +104,15 @@ def optimize(
     total_cost_over_epochs = []
     cost_values_over_epochs = []
     epoch_times = []
-    parameters_over_epochs = [parameters]
+
+    def _init_saved_parameters(_parameters: ArrayLike | dict) -> list | dict:
+        if isinstance(_parameters, dict):
+            return {_key: [] for _key, _val in _parameters.items()}
+        return [_parameters]
+
+    parameters_since_last_save = _init_saved_parameters(parameters)
+    previous_parameters = parameters
+    last_save_epoch = 0
 
     # Initialize plotter if needed
     if plotter is None and opt_options['plot']:
@@ -138,7 +146,6 @@ def optimize(
         print(f'saving results to {filepath}')
     try:  # trick for catching keyboard interrupt
         for epoch in range(opt_options['epochs']):
-            # Run and time one epoch
             epoch_start_time = time.time()
             parameters, grads, opt_state, aux = jax.block_until_ready(
                 step(parameters, costs, model, opt_state, method, gradient, dq_options)
@@ -150,9 +157,13 @@ def optimize(
             total_cost_over_epochs.append(total_cost)
             cost_values_over_epochs.append(cost_values)
             epoch_times.append(elapsed_time)
-            parameters_over_epochs.append(parameters)
+            if isinstance(parameters, dict):
+                for key, val in parameters.items():
+                    parameters_since_last_save[key].append(val)
+            else:
+                parameters_since_last_save.append(parameters)
 
-            # Print
+            # Print out the costs for this step
             if opt_options['verbose']:
                 print(f'epoch: {epoch}, elapsed_time: {elapsed_time} s; ')
                 if isinstance(costs, SummedCost):
@@ -164,7 +175,20 @@ def optimize(
                 else:
                     print(costs, cost_values[0])
 
-            # Plot
+            # Save logic
+            save_period = opt_options['save_period']
+            if filepath is not None and epoch > 0 and epoch % save_period == 0:
+                _save(
+                    cost_values_over_epochs,
+                    total_cost_over_epochs,
+                    parameters_since_last_save,
+                    last_save_epoch,
+                    opt_options,
+                    filepath,
+                )
+                last_save_epoch = epoch
+                parameters_since_last_save = _init_saved_parameters(parameters)
+            # Plot the cost values as well as other desired quantities
             if (
                 opt_options['plot']
                 and epoch % opt_options['plot_period'] == 0
@@ -175,13 +199,13 @@ def optimize(
                 )
 
             # Check for early termination
-            if not opt_options['ignore_termination']:
+            if epoch > 0 and not opt_options['ignore_termination']:
                 termination_key = _terminate_early(
                     grads,
                     parameters,
-                    parameters_over_epochs[-2],
+                    previous_parameters,
                     total_cost,
-                    total_cost_over_epochs[-2] if epoch > 0 else 0.0,
+                    total_cost_over_epochs[-2],
                     terminate_for_cost,
                     epoch,
                     opt_options,
@@ -192,27 +216,16 @@ def optimize(
     except KeyboardInterrupt:
         pass
 
-    # Save everything
+    # save remaining unsaved data
     if filepath is not None:
-        if opt_options['verbose']:
-            print(f'\nsaving data to {filepath}')
-
-        save_period = opt_options.get('save_period', 1)
-        data_dict = {
-            'cost_values': np.array(cost_values_over_epochs[::save_period]),
-            'total_costs': np.array(total_cost_over_epochs[::save_period]),
-        }
-
-        # Unpack and save parameters. Ignore the first entry (i.e. the initial seed.)
-        # This should make the parameter indices consistent with the cost indices.
-        if type(parameters) is dict:
-            for key in parameters:
-                data_dict[key] = np.array(
-                    [params[key] for params in parameters_over_epochs[1::save_period]]
-                )
-        else:
-            data_dict['parameters'] = np.array(parameters_over_epochs[1::save_period])
-        append_to_h5(filepath, data_dict, opt_options)
+        _save(
+            cost_values_over_epochs,
+            total_cost_over_epochs,
+            parameters_since_last_save,
+            last_save_epoch,
+            opt_options,
+            filepath,
+        )
 
     # Final plot update
     if opt_options['plot']:
@@ -252,6 +265,26 @@ def loss(
     total_cost = jnp.log(jnp.sum(jnp.asarray(total_cost)))
     expects = result.expects if hasattr(result, 'expects') else None
     return total_cost, (total_cost, cost_values, terminate, expects)
+
+
+def _save(
+    _cost_values_over_epochs: list,
+    _total_cost_over_epochs: list,
+    _parameters_since_last_save: dict | list,
+    _last_save_epoch: int,
+    _opt_options: dict,
+    _filepath: str,
+):
+    # don't want to resave data from the epoch we last saved at, so +1
+    data_dict = {
+        'cost_values': _cost_values_over_epochs[_last_save_epoch + 1 :],
+        'total_cost': _total_cost_over_epochs[_last_save_epoch + 1 :],
+    }
+    if isinstance(_parameters_since_last_save, dict):
+        data_dict |= _parameters_since_last_save
+    else:
+        data_dict['parameters'] = _parameters_since_last_save
+    append_to_h5(_filepath, data_dict, _opt_options)
 
 
 def _terminate_early(
