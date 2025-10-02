@@ -20,28 +20,24 @@ def sesolve_model(
 ) -> SESolveModel:
     r"""Instantiate sesolve model.
 
-    Here we instantiate the model that is called at each step of the optimization
-    iteration, returning a tuple of the result of calling `sesolve` as well as the
-    Hamiltonian evaluated at the parameter values.
+    Here we instantiate the model that is called at each step of the optimization iteration, 
+    returning a tuple of the result of calling `sesolve` as well as the Hamiltonian evaluated at 
+    the parameter values.
 
-    Args:
-        H_function _(callable)_: function specifying how to update the Hamiltonian
-        psi0 _(QArrayLike of shape (..., n, 1))_: Initial states.
-        tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
-            array of times passed to sesolve or a method specifying how to update
-            the times that are passed to sesolve
-        exp_ops _(list of array-like)_: Operators to calculate expectation values of,
-            in case some of the cost functions depend on the value of certain
-            expectation values.
+    Parameters:
+        H_function: function specifying how to update the Hamiltonian
+        psi0: _Shape = (..., n, 1)_. Initial states.
+        tsave_or_function: _If ArrayLike, then Shape = (ntsave,)_. Either an array of times passed 
+            to `sesolve` or a method specifying how to update the times that are passed to 
+            `sesolve`.
+        exp_ops: Operators to calculate expectation values of, in case some of the cost functions 
+            depend on the value of certain expectation values.
 
     Returns:
-        _(SESolveModel)_: Model that when called with the parameters we optimize
-            over as argument returns the results of `sesolve` as well as the updated
-            Hamiltonian
+        Model that when called with the parameters we optimize over as argument returns the results 
+            of `sesolve` as well as the updated Hamiltonian
 
-    Examples:
-        In this simple example the parameters are the amplitudes of piecewise-constant
-        controls
+    ??? example "Basic example: Piecewise-constant control"
         ```python
         tsave = jnp.linspace(0.0, 11.0, 10)
         psi0 = [dq.basis(2, 0)]
@@ -59,6 +55,7 @@ def sesolve_model(
         ```
         See for example [this tutorial](../examples/qubit).
 
+    ??? example "Advanced example: Spline control"
         In more complex cases, we can imagine that the optimized parameters
         are the control points fed into a spline, and additionally the control
         times themselves are optimized.
@@ -91,7 +88,7 @@ def sesolve_model(
         ```
         See for example [this tutorial](../examples/Kerr_oscillator#time-optimal-control).
 
-    """  # noqa E501
+    """
     H_function, tsave_or_function = _initialize_model(H_function, tsave_or_function)
     return SESolveModel(
         H_function, tsave_or_function, exp_ops=exp_ops, initial_states=psi0
@@ -108,28 +105,25 @@ def mesolve_model(
 ) -> MESolveModel:
     r"""Instantiate mesolve model.
 
-    Here we instantiate the model that is called at each step of the optimization
-    iteration, returning a tuple of the result of calling `mesolve` as well as the
-    Hamiltonian evaluated at the parameter values.
+    Here we instantiate the model that is called at each step of the optimization iteration, 
+    returning a tuple of the result of calling `mesolve` as well as the Hamiltonian evaluated at 
+    the parameter values.
 
-    Args:
-        H_function _(callable)_: function specifying how to update the Hamiltonian
-        jump_ops _(list of qarray-like or time-qarray, each of shape (...Lk, n, n))_:
-            List of jump operators.
-        rho0 _(QArrayLike of shape (..., n, n))_: Initial density matrices.
-        tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
-            array of times passed to sesolve or a method specifying how to update
-            the times that are passed to sesolve
-        exp_ops _(list of array-like)_: Operators to calculate expectation values of,
-            in case some of the cost functions depend on the value of certain
-            expectation values.
+    Parameters:
+        H_function: function specifying how to update the Hamiltonian
+        jump_ops: _Each of QArray or TimeQArray is has shape = (...Lk, n, n))_. List of jump 
+            operators.
+        rho0: _Shape = (..., n, n)_. Initial density matrices.
+        tsave_or_function: _If ArrayLike, then Shape = (ntsave,)_. Either an array of times passed 
+            to sesolve or a method specifying how to update the times that are passed to `mesolve`.
+        exp_ops: Operators to calculate expectation values of, in case some of the cost functions 
+            depend on the value of certain expectation values.
 
     Returns:
-        _(MESolveModel)_: Model that when called with the parameters we optimize
-            over as argument returns the results of `mesolve` as well as the updated
-            Hamiltonian
+        Model that when called with the parameters we optimize over as argument returns the results 
+            of `mesolve` as well as the updated Hamiltonian
 
-    Examples:
+    ??? example "Advanced example: Spline control"
         Instantiating a `MESolveModel` is quite similar to instantiating an
         `SESolveModel`, with the two differences being that we need to supply jump
         operators, and the initial and target states should be specified as density
@@ -159,27 +153,21 @@ def sepropagator_model(
 ) -> SEPropagatorModel:
     r"""Instantiate sepropagator model.
 
-    Here we instantiate the model that is called at each step of the optimization
-    iteration, returning a tuple of the result of calling `sepropagator` as well
-    as the Hamiltonian evaluated at the parameter values.
+    Here we instantiate the model that is called at each step of the optimization iteration, 
+    returning a tuple of the result of calling `sepropagator` as well as the Hamiltonian evaluated 
+    at the parameter values.
 
-    Args:
-        H_function _(callable)_: function specifying how to update the Hamiltonian
-        tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
-            array of times passed to the method or a function specifying how to update
-            the times that are passed to the method
-        exp_ops _(list of array-like)_: Operators to calculate expectation values of,
-            in case some of the cost functions depend on the value of certain
-            expectation values.
+    Parameters:
+        H_function: function specifying how to update the Hamiltonian
+        tsave_or_function: _If ArrayLike, then Shape = (ntsave,)_. Either an array of times passed 
+            to `sepropagator` or a method specifying how to update the times that are passed to 
+            `sepropagator`.
 
     Returns:
-        _(SEPropagatorModel)_: Model that when called with the parameters we optimize
-            over as argument returns the results of `sepropagator` as well as the
-            updated Hamiltonian
+        Model that when called with the parameters we optimize over as argument returns the results 
+            of `sepropagator` as well as the updated Hamiltonian
 
-    Examples:
-        In this simple example the parameters are the amplitudes of piecewise-constant
-        controls
+    ??? example "Basic example: Piecewise-constant control"
         ```python
         tsave = jnp.linspace(0.0, 11.0, 10)
         H1s = [dq.sigmax(), dq.sigmay()]
@@ -195,6 +183,7 @@ def sepropagator_model(
         sepropagator_model = ql.sepropagator_model(H_pwc, tsave)
         ```
 
+    ??? example "Advanced example: Spline control"
         In more complex cases, we can imagine that the optimized parameters
         are the control points fed into a spline, and additionally the control
         times themselves are optimized.
@@ -238,27 +227,23 @@ def mepropagator_model(
 ) -> MEPropagatorModel:
     r"""Instantiate mepropagator model.
 
-    Here we instantiate the model that is called at each step of the optimization
-    iteration, returning a tuple of the result of calling `mepropagator` as well
-    as the Hamiltonian evaluated at the parameter values.
+    Here we instantiate the model that is called at each step of the optimization iteration, 
+    returning a tuple of the result of calling `mepropagator` as well as the Hamiltonian evaluated 
+    at the parameter values.
 
-    Args:
-        H_function _(callable)_: function specifying how to update the Hamiltonian
-        jump_ops _(list of qarray-like or time-qarray, each of shape (...Lk, n, n))_:
-            List of jump operators.
-        tsave_or_function _(ArrayLike of shape (ntsave,) or callable)_: Either an
-            array of times passed to the method or a method specifying how to update
-            the times that are passed to the method
-        exp_ops _(list of array-like)_: Operators to calculate expectation values of,
-            in case some of the cost functions depend on the value of certain
-            expectation values.
+    Parameters:
+        H_function: function specifying how to update the Hamiltonian
+        jump_ops: _Each of QArray or TimeQArray is has shape = (...Lk, n, n))_. List of jump 
+            operators.
+        tsave_or_function: _If ArrayLike, then Shape = (ntsave,)_. Either an array of times passed 
+            to `mepropagator` or a method specifying how to update the times that are passed to 
+            `mepropagator`.
 
     Returns:
-        _(MEPropagatorModel)_: Model that when called with the parameters we optimize
-            over as argument returns the results of `mepropagator` as well as the
-            updated Hamiltonian
+        Model that when called with the parameters we optimize over as argument returns the results 
+            of `mepropagator` as well as the updated Hamiltonian
 
-    Examples:
+    ??? example "Advanced example: Spline control"
         Instantiating a `MEPropagatorModel` is quite similar to instantiating an
         `SEPropagatorModel`, with the difference being that we need to supply jump
         operators. Continuing the last example from `sepropagator_model`
@@ -308,12 +293,6 @@ class PropagatorModel(Model):
 
 
 class SESolveModel(SolveModel):
-    r"""Model for Schrödinger-equation optimization.
-
-    When called with the parameters we optimize over returns the results of `sesolve`
-    as well as the updated Hamiltonian.
-    """
-
     initial_states: QArrayLike
 
     def __call__(
@@ -338,12 +317,6 @@ class SESolveModel(SolveModel):
 
 
 class MESolveModel(SolveModel):
-    r"""Model for Lindblad-master-equation optimization.
-
-    When called with the parameters we optimize over returns the results of `mesolve`
-    as well as the updated Hamiltonian.
-    """
-
     initial_states: QArrayLike
     jump_ops: list[QArrayLike | TimeQArray]
 
@@ -370,12 +343,6 @@ class MESolveModel(SolveModel):
 
 
 class SEPropagatorModel(PropagatorModel):
-    r"""Model for Schrödinger-equation propagator optimization.
-
-    When called with the parameters we optimize over returns the results of
-    `sepropagate` as well as the updated Hamiltonian.
-    """
-
     def __call__(
         self,
         parameters: Array | dict,
@@ -392,12 +359,6 @@ class SEPropagatorModel(PropagatorModel):
 
 
 class MEPropagatorModel(PropagatorModel):
-    r"""Model for Lindblad-master-equation propagator optimization.
-
-    When called with the parameters we optimize over returns the results of `mesolve`
-    as well as the updated Hamiltonian.
-    """
-
     jump_ops: list[QArrayLike | TimeQArray]
 
     def __call__(

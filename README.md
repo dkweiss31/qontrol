@@ -72,7 +72,7 @@ opt_params = ql.optimize(
     dq_options=dq_options,
 )
 ```
-You should see the following oputput, tracking the cost function values, pulse, pulse fft and expectation 
+You should see the following output, tracking the cost function values, pulse, pulse fft and expectation 
 values over the course of the optimization 
 ![Alt Text](kerr_gif.gif)
 We initialize the `sesolve_model` which when called with `parameters` as input runs `sesolve`
