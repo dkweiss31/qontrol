@@ -5,6 +5,7 @@ import os
 import re
 
 import h5py
+import numpy as np
 
 
 def generate_file_path(extension: str, file_name: str, path: str) -> str:
@@ -39,13 +40,15 @@ def extract_info_from_h5(filepath: str) -> [dict, dict]:
 def append_to_h5(filepath: str, data_dict: dict, param_dict: dict) -> None:
     with h5py.File(filepath, 'a') as f:
         for key, val in data_dict.items():
+            _val = np.asarray(val)
             if key not in f:
                 f.create_dataset(
-                    key, data=[val], chunks=True, maxshape=(None, *val.shape)
+                    key, data=_val, chunks=True, maxshape=(None, *_val.shape[1:])
                 )
             else:
-                f[key].resize(f[key].shape[0] + 1, axis=0)
-                f[key][-1] = val
+                prev_dim = f[key].shape[0]
+                f[key].resize(prev_dim + _val.shape[0], axis=0)
+                f[key][prev_dim:] = _val
         for key, val in param_dict.items():
             try:
                 f.attrs[key] = val
