@@ -133,7 +133,8 @@ def custom_plotter(plotting_functions: list[Callable]) -> Plotter:
             `parameters`).
 
     Returns:
-        Plotter whose `update_plots` method is repeatedly called during an optimization run.
+        Plotter whose `update_plots` method is repeatedly called during an optimization
+        run.
 
     ??? example "Example"
         We plot the controls as well as the expectation values for two different initial

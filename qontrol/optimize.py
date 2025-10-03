@@ -59,13 +59,13 @@ def optimize(
     r"""Perform gradient descent to optimize Hamiltonian parameters.
 
     This function takes as input `parameters` which parametrize a `model` when called
-    performs time-dynamics simulations using Dynamiqs. How to update `parameters` is encoded
-    in the list of cost functions `costs` that contains e.g. infidelity contributions, pulse
-    amplitude penalties, etc.
+    performs time-dynamics simulations using Dynamiqs. How to update `parameters` is
+    encoded in the list of cost functions `costs` that contains e.g. infidelity
+    contributions, pulse amplitude penalties, etc.
 
     Parameters:
-        parameters: parameters to optimize over that are used to define the Hamiltonian and control 
-            times.
+        parameters: parameters to optimize over that are used to define the Hamiltonian
+            and control times.
         costs: List of cost functions used to perform the optimization.
         model: Model that is called at each iteration step.
         optimizer: optax optimizer to use
@@ -74,33 +74,35 @@ def optimize(
         method: Method passed to Dynamiqs.
         gradient: Gradient passed to Dynamiqs.
         filepath: Filepath of where to save optimization results.
-        dq_options : Options for the Dynamiqs integrator. 
+        dq_options : Options for the Dynamiqs integrator.
         opt_options: Options for grape optimization.
             ??? info "Detailed `opt_options` API"
-                - `verbose` (`bool`, default: `True`): If `True`, the optimizer will print out the 
-                    infidelity at each epoch step to track the progress of the optimization.
-                - `ignore_termination` (`bool`, default: `False`): Whether to ignore the various 
-                    termination conditions
-                - `all_costs` (`bool`, default: `True`): Whether or not all costs must be below 
-                    their targets for early termination of the optimizer. If `False`, the 
-                    optimization terminates if only one cost function is below the target 
-                    (typically infidelity).
+                - `verbose` (`bool`, default: `True`): If `True`, the optimizer will
+                    print out the infidelity at each epoch step to track the progress of
+                    the optimization.
+                - `ignore_termination` (`bool`, default: `False`): Whether to ignore the
+                    various termination conditions
+                - `all_costs` (`bool`, default: `True`): Whether or not all costs must
+                    be below their targets for early termination of the optimizer. If
+                    `False`, the optimization terminates if only one cost function is
+                    below the target (typically infidelity).
                 - `epochs` (`int`, default: `2000`): Number of optimization epochs.
-                - `plot` (`bool`, default: `True`): Whether to plot the results during the 
-                    optimization (for the epochs where results are plotted, necessarily suffer a 
-                    time penalty).
-                - `plot_period` (`int`, default: `30`): If plot is `True`, plot every `plot_period`.
-                - `save_period` (`int`, default: `30`): If a filepath is provided, save every 
-                    `save_period`.
-                - `xtol` (`float`, default: `1e-8`): Terminate the optimization if the parameters 
-                    are not being updated
-                - `ftol` (`float`, default: `1e-8`): Terminate the optimization if the cost 
-                    function is not changing above this level
-                - `gtol` (`float`, default: `1e-8`): Terminate the optimization if the norm of the 
-                    gradient falls below this level
+                - `plot` (`bool`, default: `True`): Whether to plot the results during
+                    the optimization (for the epochs where results are plotted,
+                    necessarily suffer a time penalty).
+                - `plot_period` (`int`, default: `30`): If plot is `True`, plot every
+                    `plot_period`.
+                - `save_period` (`int`, default: `30`): If a filepath is provided, save
+                    every `save_period`.
+                - `xtol` (`float`, default: `1e-8`): Terminate the optimization if the
+                    parameters are not being updated.
+                - `ftol` (`float`, default: `1e-8`): Terminate the optimization if the
+                    cost function is not changing above this level.
+                - `gtol` (`float`, default: `1e-8`): Terminate the optimization if the
+                    norm of the gradient falls below this level.
 
     Returns:
-        Optimized parameters from the final timestep
+        Optimized parameters from the final timestep.
     """
     # Initialize
     opt_options = {**default_options, **(opt_options or {})}
