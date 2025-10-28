@@ -176,8 +176,11 @@ def optimize(
                     print(costs, cost_values[0])
 
             # Save logic
-            save_period = opt_options['save_period']
-            if filepath is not None and epoch > 0 and epoch % save_period == 0:
+            if (
+                filepath is not None
+                and epoch > 0
+                and epoch % opt_options['save_period'] == 0
+            ):
                 _save(
                     cost_values_over_epochs,
                     total_cost_over_epochs,
@@ -188,6 +191,7 @@ def optimize(
                 )
                 last_save_epoch = epoch
                 parameters_since_last_save = _init_saved_parameters(parameters)
+                
             # Plot the cost values as well as other desired quantities
             if (
                 opt_options['plot']
@@ -212,6 +216,7 @@ def optimize(
                 )
                 if termination_key != -1:
                     break
+            previous_parameters = parameters
 
     except KeyboardInterrupt:
         pass
@@ -261,8 +266,7 @@ def loss(
 ) -> [float, Array]:
     result, H = model(parameters, method, gradient, dq_options)
     cost_values, terminate = zip(*costs(result, H, parameters), strict=True)
-    total_cost = jax.tree.reduce(jnp.add, cost_values)
-    total_cost = jnp.log(jnp.sum(jnp.asarray(total_cost)))
+    total_cost = jnp.log(jax.tree.reduce(jnp.add, cost_values))
     expects = result.expects if hasattr(result, 'expects') else None
     return total_cost, (total_cost, cost_values, terminate, expects)
 
