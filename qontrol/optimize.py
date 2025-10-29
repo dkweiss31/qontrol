@@ -191,7 +191,7 @@ def optimize(
                 )
                 last_save_epoch = epoch
                 parameters_since_last_save = _init_saved_parameters(parameters)
-                
+
             # Plot the cost values as well as other desired quantities
             if (
                 opt_options['plot']
