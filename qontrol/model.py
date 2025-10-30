@@ -57,7 +57,7 @@ def sesolve_model(
 
     ??? example "Spline control"
         In more complex cases, we can imagine that the optimized parameters
-        are the control points fed into a spline, and aditionally the control
+        are the control points fed into a spline, and additionally the control
         times themselves are optimized.
         ```python
         init_drive_params_topt = {
