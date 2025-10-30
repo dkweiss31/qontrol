@@ -24,21 +24,22 @@ def incoherent_infidelity(
     where the states at the end of the pulse are $|\psi_{i}^{k}(T)\rangle$ and the
     target states are $|\psi_{t}^{k}\rangle$.
 
-    Args:
-        target_states _(qarray_like of shape (s, n, 1) or (s, n, n))_: target states for
+    Parameters:
+        target_states: _Shape of QArrays = (s, n, 1) or (s, n, n)_. Target states for
             the initial states passed to `optimize`. If performing master-equation
-            optimization, the target states should be passed as a list of density matrices.
-        cost_multiplier _(float)_: Weight for this cost function relative to other cost
+            optimization, the target states should be passed as a list of density
+            matrices.
+        cost_multiplier: Weight for this cost function relative to other cost
             functions.
-        target_cost _(float)_: Target value for this cost function. If options.all_costs
+        target_cost: Target value for this cost function. If options.all_costs
             is True, the optimization terminates early if all cost functions fall below
             their target values. If options.all_costs is False, the optimization
             terminates if only one cost function falls below its target value.
 
     Returns:
-        _(IncoherentInfidelity)_: Callable object that returns the incoherent infidelity
-            and whether the infidelity is below the target value.
-    """  # noqa: E501
+        Callable object that returns the incoherent infidelity and whether the
+            infidelity is below the target value.
+    """
     return IncoherentInfidelity(cost_multiplier, target_cost, asqarray(target_states))
 
 
@@ -56,21 +57,21 @@ def coherent_infidelity(
     where the states at the end of the pulse are $|\psi_{i}^{k}(T)\rangle$ and the
     target states are $|\psi_{t}^{k}\rangle$.
 
-    Args:
-        target_states _(qarray_like of shape (s, n, 1) or (s, n, n))_: target states for
+    Parameters:
+        target_states: _Shape = (s, n, 1) or (s, n, n)_. Target states for
             the initial states passed to `optimize`. If performing master-equation
-            optimization, the target states should be passed as a list of density matrices.
-        cost_multiplier _(float)_: Weight for this cost function relative to other cost
-            functions.
-        target_cost _(float)_: Target value for this cost function. If options.all_costs
+            optimization, the target states should be passed as a list of density
+            matrices.
+        cost_multiplier: Weight for this cost function relative to other cost functions.
+        target_cost: Target value for this cost function. If options.all_costs
             is True, the optimization terminates early if all cost functions fall below
             their target values. If options.all_costs is False, the optimization
             terminates if only one cost function falls below its target value.
 
     Returns:
-        _(CoherentInfidelity)_: Callable object that returns the coherent infidelity
-            and whether the infidelity is below the target value.
-    """  # noqa: E501
+        Callable object that returns the coherent infidelity and whether the infidelity
+            is below the target value.
+    """
     return CoherentInfidelity(cost_multiplier, target_cost, asqarray(target_states))
 
 
@@ -86,19 +87,19 @@ def propagator_infidelity(
     where the propagator at the end of the pulse is $U$, the dimension of the system is
     $d$ and the target unitary $U_{t}$.
 
-    Args:
-        target_unitary _(qarray_like of shape (n, n))_: target unitary for
-            the initial states passed to `optimize`.
-        cost_multiplier _(float)_: Weight for this cost function relative to other cost
+    Parameters:
+        target_unitary: _Shape = (n,n)_. Target unitary for the initial states passed
+            to `optimize`.
+        cost_multiplier: Weight for this cost function relative to other cost
             functions.
-        target_cost _(float)_: Target value for this cost function. If options.all_costs
+        target_cost: Target value for this cost function. If options.all_costs
             is True, the optimization terminates early if all cost functions fall below
             their target values. If options.all_costs is False, the optimization
             terminates if only one cost function falls below its target value.
 
     Returns:
-        _(PropagatorInfidelity)_: Callable object that returns the propagator infidelity
-            and whether the infidelity is below the target value.
+        Callable object that returns the propagator infidelity and whether the
+            infidelity is below the target value.
     """
     target_unitary = asqarray(target_unitary)
     dim = jnp.prod(jnp.array(target_unitary.dims))
@@ -114,33 +115,31 @@ def forbidden_states(
 
     This cost function is defined as
     $$
-        C = \sum_{k}\sum_{f}\int_{0}^{T}dt|\langle\psi_{f}^{k}|\psi_{i}^{k}(t)\rangle|^2,
+        C=\sum_{k}\sum_{f}\int_{0}^{T}dt|\langle\psi_{f}^{k}|\psi_{i}^{k}(t)\rangle|^2,
     $$
     where $|\psi_{i}^{k}(t)\rangle$ is the $k^{\rm th}$ initial state propagated to time
     $t$ and |\psi_{f}^{k}\rangle is a forbidden state for the $k^{\rm th}$ initial
     state.
 
-    Args:
-        forbidden_states_list _(list of list of qarray-like of shape (n, 1) or (n, n))_:
-            For each initial state indexed by s (outer list), a list of forbidden states
-            (inner list) should be provided. The inner lists need not all be of the same shape,
-            for instance if some initial states have more forbidden states than others. The array
-            is eventually reshaped to have shape (s, 1, f, n, 1) or (s, 1, f, n, n) (for
-            `sesolve` or `mesolve`, respectively) where s is the number of initial
-            states, f is the length of the longest forbidden-state list (with
-            zero-padding for meaningless entries) and 1 is an added batch dimension for
-            eventually batching over tsave.
-        cost_multiplier _(float)_: Weight for this cost function relative to other cost
-            functions.
-        target_cost _(float)_: Target value for this cost function. If options.all_costs
-            is True, the optimization terminates early if all cost functions fall below
-            their target values. If options.all_costs is False, the optimization
-            terminates if only one cost function falls below its target value.
+    Parameters:
+        forbidden_states_list: Shape of QArrays = (n, 1) or (n, n)_.
+            A list of forbidden states for each initial state (indexed by s). The inner
+            lists need not all be of the same shape, for instance if some initial states
+            have more forbidden states than others. The array is eventually reshaped to
+            have shape (s, 1, f, n, 1) or (s, 1, f, n, n) (for `sesolve` or `mesolve`,
+            respectively) where s is the number of initial states, f is the length of
+            the longest forbidden-state list (with zero-padding for meaningless entries)
+            and 1 is an added batch dimension for eventually batching over tsave.
+        cost_multiplier: Weight for this cost function relative to other cost functions.
+        target_cost: Target value for this cost function. If options.all_costs is True,
+            the optimization terminates early if all cost functions fall below their
+            target values. If options.all_costs is False, the optimization terminates if
+            only one cost function falls below its target value.
 
     Returns:
-        _(ForbiddenStates)_: Callable object that returns the forbidden-state cost
-            and whether the cost is below the target value.
-    """  # noqa: E501
+        Callable object that returns the forbidden-state cost and whether the cost is
+            below the target value.
+    """
     state_shape = forbidden_states_list[0][0].shape
     num_states = len(forbidden_states_list)  # should be the number of initial states
     num_forbid_per_state = jnp.asarray(
@@ -175,17 +174,18 @@ def control_area(
     $$
     where the $\Omega_{j}$ are the individual controls and $T$ is the pulse time.
 
-    Args:
-        cost_multiplier _(float)_: Weight for this cost function relative to other cost
-            functions.
-        target_cost _(float)_: Target value for this cost function. If options.all_costs
-            is True, the optimization terminates early if all cost functions fall below
-            their target values. If options.all_costs is False, the optimization
-            terminates if only one cost function falls below its target value.
+    Parameters:
+        threshold: Threshold to use for penalizing areas above this value in absolute
+            magnitude.
+        cost_multiplier: Weight for this cost function relative to other cost functions.
+        target_cost: Target value for this cost function. If options.all_costs is True,
+            the optimization terminates early if all cost functions fall below their
+            target values. If options.all_costs is False, the optimization terminates
+            if only one cost function falls below its target value.
 
     Returns:
-        _(ControlArea)_: Callable object that returns the control-area cost
-            and whether the cost is below the target value.
+        Callable object that returns the control-area cost and whether the cost is
+            below the target value.
     """
     return ControlCostArea(cost_multiplier, target_cost, threshold)
 
@@ -202,19 +202,18 @@ def control_norm(
     where the $\Omega_{j}$ are the individual controls, $T$ is the pulse time
     and $\Omega_{max}$ is the threshold.
 
-    Args:
-        threshold _(float)_: Threshold to use for penalizing amplitudes above this value
-            in absolute magnitude.
-        cost_multiplier _(float)_: Weight for this cost function relative to other cost
-            functions.
-        target_cost _(float)_: Target value for this cost function. If options.all_costs
-            is True, the optimization terminates early if all cost functions fall below
-            their target values. If options.all_costs is False, the optimization
-            terminates if only one cost function falls below its target value.
+    Parameters:
+        threshold: Threshold to use for penalizing amplitudes above this value in
+            absolute magnitude.
+        cost_multiplier: Weight for this cost function relative to other cost functions.
+        target_cost: Target value for this cost function. If options.all_costs is True,
+            the optimization terminates early if all cost functions fall below their
+            target values. If options.all_costs is False, the optimization terminates
+            if only one cost function falls below its target value.
 
     Returns:
-        _(ControlNorm)_: Callable object that returns the control-norm cost
-            and whether the cost is below the target value.
+        Callable object that returns the control-norm cost and whether the cost is
+            below the target value.
     """
     return ControlCostNorm(cost_multiplier, target_cost, threshold)
 
@@ -229,20 +228,20 @@ def custom_control_cost(
         C = \sum_{j}\int_{0}^{T}F(\Omega_{j}(t))dt,
     $$
 
-    Args:
-        cost_fun _(callable)_: Cost function which must have signature `(control_amp: Array) -> Array`.
-        cost_multiplier _(float)_: Weight for this cost function relative to other cost
-            functions.
-        target_cost _(float)_: Target value for this cost function. If options.all_costs
-            is True, the optimization terminates early if all cost functions fall below
-            their target values. If options.all_costs is False, the optimization
-            terminates if only one cost function falls below its target value.
+    Parameters:
+        cost_fun: Cost function which must have signature `(control_amp: Array) ->
+            Array`.
+        cost_multiplier: Weight for this cost function relative to other cost functions.
+        target_cost: Target value for this cost function. If options.all_costs is True,
+            the optimization terminates early if all cost functions fall below their
+            target values. If options.all_costs is False, the optimization terminates if
+            only one cost function falls below its target value.
 
     Returns:
-        _(CustomCost)_: Callable object that returns the cost for the custom function
-            and whether the cost is below the target value.
+        Callable object that returns the cost for the custom function and whether the
+            cost is below the target value.
 
-    Examples:
+    ??? example "Example: Penalize negative drive amplitudes"
         ```python
         def penalize_negative(control_amp: jax.Array) -> jax.Array:
             return jax.nn.relu(-control_amp)
@@ -250,8 +249,7 @@ def custom_control_cost(
 
         negative_amp_cost = ql.custom_control_cost(penalize_negative)
         ```
-        In this example, we penalize negative drive amplitudes.
-    """  # noqa: E501
+    """
     cost_fun = jtu.Partial(cost_fun)
     return CustomControlCost(cost_multiplier, target_cost, cost_fun)
 
@@ -265,21 +263,21 @@ def custom_cost(
     optimization that is not included in the hardcoded set of available cost functions.
 
     Args:
-        cost_fun _(callable)_: Cost function which must have signature
-            `(result: dq.SolveResult, H: dq.TimeQArray, parameters: dict | Array) -> Array`.
-        cost_multiplier _(float)_: Weight for this cost function relative to other cost
-            functions.
-        target_cost _(float)_: Target value for this cost function. If options.all_costs
+        cost_fun: Cost function which must have signature
+            `(result: dq.SolveResult, H: dq.TimeQArray, parameters: dict | Array) ->
+            Array`.
+        cost_multiplier: Weight for this cost function relative to other cost functions.
+        target_cost: Target value for this cost function. If options.all_costs
             is True, the optimization terminates early if all cost functions fall below
             their target values. If options.all_costs is False, the optimization
             terminates if only one cost function falls below its target value.
 
     Returns:
-        _(CustomCost)_: Callable object that returns the cost for the custom function.
+        Callable object that returns the cost for the custom function.
 
-    Examples:
-        Let's imagine we want to penalize the value of some expectation value at the final
-        time in `tsave`.
+    ??? example "Example: Penalize an expectation value"
+        Let's imagine we want to penalize the value of some expectation value at the
+        final time in `tsave`.
 
         ```python
         def penalize_expect(
@@ -295,7 +293,7 @@ def custom_cost(
         thing happening under the hood is that the `penalize_expect` function is passed
         to `jax.tree_util.Partial` to enable it to be passed through jitted functions
         without issue.
-    """  # noqa: E501
+    """
     cost_fun = jtu.Partial(cost_fun)
     return CustomCost(cost_multiplier, target_cost, cost_fun)
 

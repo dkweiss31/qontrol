@@ -120,12 +120,12 @@ def custom_plotter(plotting_functions: list[Callable]) -> Plotter:
     can ask for: if more than four, additional plots will appear in a new row of four,
     and so on.
 
-    Args:
-        plotting_functions _(list[Callable])_: list of functions that each return a plot
+    Parameters:
+        plotting_functions: list of functions that each return a plot
             useful for tracking intermediate results, such as the value of the optimized
             controls, fft of the controls, expectation values, etc. Each function must
             have signature `example_plot_function(ax, expects, model, parameters)` where
-            `ax` is the matplotlib.pyplot.Axes instance where the results are plotted,
+            `ax` is the `matplotlib.pyplot.Axes` instance where the results are plotted,
             `expects` is of type dq.SolveResult.expects (which could be `None`), `model`
             is of type `ql.Model` and `parameters` are the parameters being optimized.
             Of course, some of these arguments may be unused for a particular plot (for
@@ -133,10 +133,10 @@ def custom_plotter(plotting_functions: list[Callable]) -> Plotter:
             `parameters`).
 
     Returns:
-        _(Plotter)_: Plotter whose `update_plots` method is repeatedly called during an
-            optimization run.
+        Plotter whose `update_plots` method is repeatedly called during an optimization
+        run.
 
-    Examples:
+    ??? example "Example"
         We plot the controls as well as the expectation values for two different initial
         states
         ```python
@@ -174,12 +174,12 @@ def custom_plotter(plotting_functions: list[Callable]) -> Plotter:
         ) -> Axes:
             ax.set_facecolor('none')
             tsave = model.tsave_function(parameters)
-            finer_tsave = np.linspace(0.0, tsave[-1], 10 * len(tsave))
+            finer_tsave = jnp.linspace(0.0, tsave[-1], 10 * len(tsave))
             for idx, control in enumerate(parameters):
                 H_c = dq.pwc(tsave, control, H1s[idx])
                 ax.plot(
                     finer_tsave,
-                    np.real(H_c.prefactor(finer_tsave)) / 2 / np.pi,
+                    np.real(jax.vmap(H_c.prefactor)(finer_tsave)) / 2 / np.pi,
                     label=H1_labels[idx],
                 )
             ax.legend(loc='lower right', framealpha=0.0)
