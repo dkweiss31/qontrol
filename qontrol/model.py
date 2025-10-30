@@ -37,7 +37,7 @@ def sesolve_model(
         Model that when called with the parameters we optimize over as argument returns
             the results of `sesolve` as well as the updated Hamiltonian.
 
-    ??? example "Basic example: Piecewise-constant control"
+    ??? example "Piecewise-constant control"
         ```python
         tsave = jnp.linspace(0.0, 11.0, 10)
         psi0 = [dq.basis(2, 0)]
@@ -55,9 +55,9 @@ def sesolve_model(
         ```
         See for example [this tutorial](../examples/qubit).
 
-    ??? example "Advanced example: Spline control"
+    ??? example "Spline control"
         In more complex cases, we can imagine that the optimized parameters
-        are the control points fed into a spline, and additionally the control
+        are the control points fed into a spline, and aditionally the control
         times themselves are optimized.
         ```python
         init_drive_params_topt = {
@@ -106,9 +106,9 @@ def mesolve_model(
 ) -> MESolveModel:
     r"""Instantiate mesolve model.
 
-    Here we instantiate the model that is called at each step of the optimization
-    iteration, returning a tuple of the result of calling `mesolve` as well as the
-    Hamiltonian evaluated at the parameter values.
+    Here we instantiate the model called at each step of the optimization iteration,
+    returning a tuple of the result of calling `mesolve` as well as the Hamiltonian
+    evaluated at the parameter values.
 
     Parameters:
         H_function: function specifying how to update the Hamiltonian
@@ -125,7 +125,7 @@ def mesolve_model(
         Model that when called with the parameters we optimize over as argument returns
             the results of `mesolve` as well as the updated Hamiltonian.
 
-    ??? example "Advanced example: Spline control"
+    ??? example "Instantiating a MESolveModel"
         Instantiating a `MESolveModel` is quite similar to instantiating an
         `SESolveModel`, with the two differences being that we need to supply jump
         operators, and the initial and target states should be specified as density
@@ -169,7 +169,7 @@ def sepropagator_model(
         Model that when called with the parameters we optimize over as argument returns
             the results of `sepropagator` as well as the updated Hamiltonian.
 
-    ??? example "Basic example: Piecewise-constant control"
+    ??? example "Instantiating a `SEPropagatorModel`"
         ```python
         tsave = jnp.linspace(0.0, 11.0, 10)
         H1s = [dq.sigmax(), dq.sigmay()]
@@ -183,38 +183,6 @@ def sepropagator_model(
 
 
         sepropagator_model = ql.sepropagator_model(H_pwc, tsave)
-        ```
-
-    ??? example "Advanced example: Spline control"
-        In more complex cases, we can imagine that the optimized parameters
-        are the control points fed into a spline, and additionally the control
-        times themselves are optimized.
-        ```python
-        init_drive_params_topt = {
-            'dp': -0.001 * jnp.ones((len(H1s), len(tsave))),
-            't': tsave[-1],
-        }
-
-
-        def H_func_topt(t: float, drive_params_dict: dict) -> dq.TimeQArray:
-            drive_params = drive_params_dict['dp']
-            new_tsave = jnp.linspace(0.0, drive_params_dict['t'], len(tsave))
-            drive_spline = _drive_spline(drive_params, envelope, new_tsave)
-            drive_amps = drive_spline.evaluate(t)
-            drive_Hs = jnp.einsum('d,dij->ij', drive_amps, H1s)
-            return H0 + drive_Hs
-
-
-        def update_H_topt(drive_params_dict: dict) -> dq.TimeQArray:
-            new_H = jtu.Partial(H_func_topt, drive_params_dict=drive_params_dict)
-            return dq.timecallable(new_H)
-
-
-        def update_tsave_topt(drive_params_dict: dict) -> jax.Array:
-            return jnp.linspace(0.0, drive_params_dict['t'], len(tsave))
-
-
-        sep_t_opt_Kerr_model = ql.sepropagator_model(update_H_topt, update_tsave_topt)
         ```
 
     """
@@ -245,7 +213,7 @@ def mepropagator_model(
         Model that when called with the parameters we optimize over as argument returns
             the results of `mepropagator` as well as the updated Hamiltonian.
 
-    ??? example "Advanced example: Spline control"
+    ??? example "Instantiating a `MEPropagatorModel`"
         Instantiating a `MEPropagatorModel` is quite similar to instantiating an
         `SEPropagatorModel`, with the difference being that we need to supply jump
         operators. Continuing the last example from `sepropagator_model`
