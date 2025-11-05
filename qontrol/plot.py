@@ -14,7 +14,7 @@ from .model import Model
 
 
 def plot_costs(
-    ax: Axes, costs: Cost, epoch: int, cost_values_over_epochs: list
+    ax: Axes, costs: Cost, epoch: int, cost_values_over_epochs: list | np.ndarray
 ) -> Axes:
     """Plot the evolution of the cost function values."""
     ax.set_facecolor('none')
@@ -212,7 +212,7 @@ class Plotter:
         costs: Cost,
         model: Model,
         expects: Array | None,
-        cost_values_over_epochs: list,
+        cost_values_over_epochs: list | np.ndarray,
         epoch: int,
     ):
         clear_output(wait=True)

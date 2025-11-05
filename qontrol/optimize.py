@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import time
-from functools import partial
 
 import dynamiqs as dq
 import jax
@@ -24,17 +23,16 @@ TERMINATION_MESSAGES = {
     -1: 'terminated on keyboard interrupt',
     0: 'reached maximum number of allowed epochs;',
     1: '`gtol` termination condition is satisfied;',
-    2: '`ftol` termination condition is satisfied;',
-    3: '`xtol` termination condition is satisfied;',
-    4: 'target cost reached for one cost function;',
-    5: 'target cost reached for all cost functions;',
+    2: '`xtol` termination condition is satisfied;',
+    3: '`ftol` termination condition is satisfied;',
+    4: 'target cost reached for all cost functions;',
 }
 
 default_options = {
     'verbose': True,
     'ignore_termination': False,
-    'all_costs': True,
     'epochs': 2000,
+    'batch': False,
     'plot': True,
     'plot_period': 30,
     'save_period': 30,
@@ -83,11 +81,11 @@ def optimize(
                     the optimization.
                 - `ignore_termination` (`bool`, default: `False`): Whether to ignore the
                     various termination conditions
-                - `all_costs` (`bool`, default: `True`): Whether or not all costs must
-                    be below their targets for early termination of the optimizer. If
-                    `False`, the optimization terminates if only one cost function is
-                    below the target (typically infidelity).
                 - `epochs` (`int`, default: `2000`): Number of optimization epochs.
+                - `batch` (`bool`, default: False): Whether to batch over random
+                    initial parameters. If True, then `len(parameters)` defines the
+                    number of simulations to batch over. If False, then `parameters` is
+                    assumed to not be batched.
                 - `plot` (`bool`, default: `True`): Whether to plot the results during
                     the optimization (for the epochs where results are plotted,
                     necessarily suffer a time penalty).
@@ -107,10 +105,15 @@ def optimize(
     """
     # Initialize
     opt_options = {**default_options, **(opt_options or {})}
-    opt_state = optimizer.init(parameters)
     total_cost_over_epochs = []
     cost_values_over_epochs = []
     epoch_times = []
+    if (
+        opt_options['batch']
+        and isinstance(parameters, list)
+        and isinstance(parameters[0], dict)
+    ):
+        raise ValueError('batching with lists of dicts not supported')
 
     def _init_saved_parameters(_parameters: ArrayLike | dict) -> list | dict:
         if isinstance(_parameters, dict):
@@ -132,22 +135,30 @@ def optimize(
         else:
             plotter = Plotter([plot_fft, plot_controls])
 
-    @partial(jax.jit, static_argnames=('_method', '_gradient', '_options'))
-    def step(
-        _parameters: ArrayLike | dict,
-        _costs: Cost,
-        _model: Model,
-        _opt_state: OptState,
-        _method: Method,
-        _gradient: Gradient,
-        _options: dq.Options,
+    @jax.jit
+    def single_step(
+        _parameters: ArrayLike | dict, _opt_state: OptState
     ) -> [Array, TransformInitFn, Array]:
         grads, aux = jax.grad(loss, has_aux=True)(
-            _parameters, _costs, _model, _method, _gradient, _options
+            _parameters, costs, model, method, gradient, dq_options
         )
         updates, _opt_state = optimizer.update(grads, _opt_state)
         _parameters = optax.apply_updates(_parameters, updates)
         return _parameters, grads, _opt_state, aux
+
+    @jax.jit
+    def batch_step(
+        _parameters: ArrayLike | dict, _opt_state: OptState
+    ) -> [Array, TransformInitFn, Array]:
+        return jax.vmap(single_step, in_axes=(0, 0))(_parameters, _opt_state)
+
+    if opt_options['batch']:
+        step = batch_step
+        _opt_state = [optimizer.init(param) for param in parameters]
+        opt_state = jax.tree.map(lambda *args: jnp.stack(args), *_opt_state)
+    else:
+        step = single_step
+        opt_state = optimizer.init(parameters)
 
     if opt_options['verbose'] and filepath is not None:
         print(f'saving results to {filepath}')
@@ -155,7 +166,7 @@ def optimize(
         for epoch in range(opt_options['epochs']):
             epoch_start_time = time.time()
             parameters, grads, opt_state, aux = jax.block_until_ready(
-                step(parameters, costs, model, opt_state, method, gradient, dq_options)
+                step(parameters, opt_state)
             )
             elapsed_time = np.around(time.time() - epoch_start_time, decimals=3)
 
@@ -205,9 +216,8 @@ def optimize(
                 and epoch % opt_options['plot_period'] == 0
                 and epoch > 0
             ):
-                plotter.update_plots(
-                    parameters, costs, model, expects, cost_values_over_epochs, epoch
-                )
+                carry = total_cost, cost_values_over_epochs, expects, epoch
+                _plot(parameters, costs, model, plotter, opt_options, carry)
 
             # Check for early termination
             if epoch > 0 and not opt_options['ignore_termination']:
@@ -241,14 +251,8 @@ def optimize(
 
     # Final plot update
     if opt_options['plot']:
-        plotter.update_plots(
-            parameters,
-            costs,
-            model,
-            expects,
-            cost_values_over_epochs,
-            len(cost_values_over_epochs) - 1,
-        )
+        carry = total_cost, cost_values_over_epochs, expects, epoch
+        _plot(parameters, costs, model, plotter, opt_options, carry)
     if not opt_options['ignore_termination']:
         print(TERMINATION_MESSAGES[termination_key])
     print(
@@ -276,6 +280,35 @@ def loss(
     total_cost = jnp.log(jax.tree.reduce(jnp.add, cost_values))
     expects = result.expects if hasattr(result, 'expects') else None
     return total_cost, (total_cost, cost_values, terminate, expects)
+
+
+def _plot(
+    parameters: Array | dict,
+    costs: Cost,
+    model: Model,
+    plotter: Plotter,
+    opt_options: dict,
+    carry: tuple,
+):
+    total_cost, cost_values_over_epochs, expects, epoch = carry
+    if opt_options['batch']:
+        # plot for the lowest cost
+        minimum_cost_idx = np.argmin(total_cost)
+        _cost_values_over_epochs = np.array(cost_values_over_epochs)[
+            :, minimum_cost_idx
+        ]
+        plotter.update_plots(
+            parameters[minimum_cost_idx],
+            costs,
+            model,
+            expects[minimum_cost_idx],
+            _cost_values_over_epochs,
+            epoch,
+        )
+    else:
+        plotter.update_plots(
+            parameters, costs, model, expects, cost_values_over_epochs, epoch
+        )
 
 
 def _save(
@@ -308,39 +341,63 @@ def _terminate_early(
     epoch: int,
     opt_options: dict,
 ) -> None | int:
-    termination_key = -1
+    # Check epoch limit first
     if epoch == opt_options['epochs'] - 1:
-        termination_key = 0
-    # gtol and xtol
-    dx = 0.0
-    dg = 0.0
-    if isinstance(parameters, dict):
-        for (_key_new, val_new), (_key_old, val_old) in zip(
-            parameters.items(), previous_parameters.items(), strict=True
-        ):
-            dx += _norm(val_new - val_old)
-        for _, grad_val in grads.items():
-            dg += _norm(grad_val)
-    else:
-        dx += _norm(parameters - previous_parameters)
-        dg += _norm(grads)
+        return 0
+    # Calculate parameter and gradient norms
+    dx = _calculate_norm_diff(parameters, previous_parameters)
+    dg = _calculate_total_norm(grads)
     if dg < opt_options['gtol']:
-        termination_key = 1
-    # ftol
-    dF = np.abs(total_cost - prev_total_cost)
-    if dF < opt_options['ftol'] * total_cost:
-        termination_key = 2
+        return 1
     if dx < opt_options['xtol'] * (opt_options['xtol'] + dx):
-        termination_key = 3
-    if not opt_options['all_costs'] and any(terminate_for_cost):
-        termination_key = 4
-    if opt_options['all_costs'] and all(terminate_for_cost):
-        termination_key = 5
+        return 2
+    # Check df (if cost meaningfully changed)
+    if _check_cost_tolerance(total_cost, prev_total_cost, opt_options):
+        return 3
+    # Check if all costs below targets
+    if _check_cost_targets(terminate_for_cost, opt_options['batch']):
+        return 4
+    return -1
 
-    return termination_key
+
+def _calculate_norm_diff(current: Array | dict, previous: Array | dict) -> float:
+    """Calculate total norm of difference between current and previous values."""
+    if isinstance(current, dict):
+        return sum(
+            _norm(curr_val - prev_val)
+            for (_, curr_val), (_, prev_val) in zip(
+                current.items(), previous.items(), strict=True
+            )
+        )
+    return _norm(current - previous)
 
 
-def _norm(x: Array) -> Array:
+def _calculate_total_norm(values: Array | dict) -> float:
+    """Calculate total norm of values."""
+    if isinstance(values, dict):
+        return sum(_norm(val) for val in values.values())
+    return _norm(values)
+
+
+def _check_cost_tolerance(
+    total_cost: Array, prev_total_cost: Array, opt_options: dict
+) -> bool:
+    """Check if cost change is below tolerance."""
+    cost_diff = np.abs(total_cost - prev_total_cost)
+    if opt_options['batch']:
+        max_idx = np.argmax(cost_diff)
+        return cost_diff[max_idx] < opt_options['ftol'] * total_cost[max_idx]
+    return cost_diff < opt_options['ftol'] * total_cost
+
+
+def _check_cost_targets(terminate_for_cost: list[bool], is_batch: bool) -> bool:
+    """Check if cost targets have been met."""
+    if is_batch:
+        return any(all(term_for_c) for term_for_c in terminate_for_cost)
+    return all(terminate_for_cost)
+
+
+def _norm(x: Array) -> np.ndarray:
     if x.shape == ():
         return np.abs(x)
-    return np.linalg.norm(x, ord=np.inf)
+    return np.linalg.norm(x)
