@@ -212,6 +212,11 @@ def test_save_period(tmp_path):
     data_21 = _setup_and_run(filepath_21, optimizer_options_21)
     for key, val_1 in data_1.items():
         assert np.allclose(val_1, data_21[key])
+    datas = [data_1, data_21]
+    for data in datas:
+        vals = list(data.values())
+        len0 = len(vals[0])
+        assert all(len(val) == len0 for val in vals)
 
 
 def _setup_and_run(filepath: str, opt_options: dict):
