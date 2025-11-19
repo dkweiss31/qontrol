@@ -67,7 +67,11 @@ def plot_controls(
     controls = get_controls(H, tsave)
     H_labels = [f'$H_{idx}$' for idx in range(len(controls))]
     for idx, control in enumerate(controls):
-        ax.plot(tsave, np.real(control), label=H_labels[idx])
+        # If there are batch dimensions, H has been broadcast to have those same
+        # dimensions: we only want to plot the controls without these batch dims
+        n_dims = len(control.shape)
+        control_to_plot = control[:, (n_dims - 1) * (0,)] if n_dims > 1 else control
+        ax.plot(tsave, np.real(control_to_plot), label=H_labels[idx])
     ax.legend(loc='lower right', framealpha=0.0)
     ax.set_ylabel('pulse amplitude')
     ax.set_xlabel('time [ns]')
@@ -230,6 +234,7 @@ class Plotter:
             )
         plt.tight_layout()
         plt.show()
+        plt.close()
 
 
 class DefaultPlotter(Plotter):
