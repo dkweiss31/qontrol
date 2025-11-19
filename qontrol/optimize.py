@@ -197,7 +197,12 @@ def loss(
     cost_values, terminate = zip(*costs(result, H, parameters), strict=True)
     total_cost = jnp.log(jax.tree.reduce(jnp.add, cost_values))
     expects = result.expects if hasattr(result, 'expects') else None
-    return total_cost, (total_cost, cost_values, terminate, expects)
+    return total_cost, (
+        total_cost,
+        jnp.asarray(cost_values),
+        jnp.asarray(terminate),
+        expects,
+    )
 
 
 def _plot(
@@ -209,8 +214,8 @@ def _plot(
     carry: tuple,
 ):
     total_cost, cost_values_over_epochs, expects, epoch, override = carry
-    if override or (
-        opt_options['plot'] and epoch % opt_options['plot_period'] == 0 and epoch > 0
+    if opt_options['plot'] and (
+        override or (epoch % opt_options['plot_period'] == 0 and epoch > 0)
     ):
         if opt_options['batch_initial_parameters']:
             # plot for the lowest cost
@@ -256,7 +261,7 @@ def _run_epoch(
     if opt_options['verbose']:
         print(f'epoch: {epoch}, elapsed_time: {elapsed:.6f} s; ')
         if isinstance(costs, SummedCost):
-            for cost, value in zip(costs.costs, cost_values, strict=True):
+            for cost, value in zip(costs.costs, cost_values.T, strict=True):
                 print(cost, ' = ', value, '; ', end=' ')
             print('\n')
         else:
@@ -385,10 +390,10 @@ def _check_cost_tolerance(opt_recorder: OptimizerRecorder, opt_options: dict) ->
     return cost_diff < opt_options['ftol'] * current_total_cost
 
 
-def _check_cost_targets(terminate_for_cost: list[bool], is_batch: bool) -> bool:
+def _check_cost_targets(terminate_for_cost: Array, is_batch: bool) -> bool:
     """Check if cost targets have been met."""
     if is_batch:
-        return any(all(term_for_c) for term_for_c in terminate_for_cost)
+        return any(np.all(terminate_for_cost, axis=1))
     return all(terminate_for_cost)
 
 
