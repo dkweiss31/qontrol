@@ -74,7 +74,7 @@ def setup_Kerr_osc(nH=None):
 def test_costs(infid_cost, opt_type, cost, nH, tmp_path):
     filepath = _filepath(tmp_path)
     H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc(nH)
-    optimizer_options = {'epochs': 600, 'all_costs': True, 'plot': False}
+    optimizer_options = {'epochs': 600, 'plot': False}
     dq_options = dq.Options(progress_meter=None)
     # only utilized if cost == "forbid"
     dim = H_func(init_drive_params).shape[-1]
@@ -151,6 +151,7 @@ def test_batching(opt_type, tmp_path):
     if opt_type == 'sesolve':
         model = sesolve_model(H_func, psi_init, tsave)
         cost = incoherent_infidelity(psi_final, target_cost=target_cost)
+        cost += 0.01 * control_norm(2.0 * jnp.pi * 0.005, target_cost=0.1)
     elif opt_type == 'sepropagator':
         model = sepropagator_model(H_func, tsave)
         cost = propagator_infidelity(U_target, target_cost=target_cost)
@@ -174,9 +175,14 @@ def test_batching(opt_type, tmp_path):
         dq_options=dq_options,
         method=Expm(),
     )
-    opt_result, opt_H = model(opt_params, Expm(), None)
-    ((cost, terminate),) = cost(opt_result, opt_H, opt_params)
-    assert terminate
+
+    def _check_result(_opt_params):
+        opt_result, opt_H = model(opt_params, Expm(), None)
+        _, terminate = zip(*cost(opt_result, opt_H, opt_params), strict=True)
+        return all(terminate)
+
+    terminate_for_batch = jax.vmap(_check_result)(opt_params)
+    assert all(terminate_for_batch)
 
 
 def test_reinitialize(tmp_path):
@@ -212,8 +218,8 @@ def test_save_period(tmp_path):
     data_21 = _setup_and_run(filepath_21, optimizer_options_21)
     for key, val_1 in data_1.items():
         assert np.allclose(val_1, data_21[key])
-    datas = [data_1, data_21]
-    for data in datas:
+    all_data = [data_1, data_21]
+    for data in all_data:
         vals = list(data.values())
         len0 = len(vals[0])
         assert all(len(val) == len0 for val in vals)
