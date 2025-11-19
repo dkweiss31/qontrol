@@ -23,17 +23,17 @@ from .utils.file_io import append_to_h5
 
 TERMINATION_MESSAGES = {
     -1: 'terminated on keyboard interrupt',
-    0: 'reached maximum number of allowed epochs;',
-    1: '`gtol` termination condition is satisfied;',
-    2: '`xtol` termination condition is satisfied;',
-    3: '`ftol` termination condition is satisfied;',
-    4: 'target cost reached for all cost functions;',
+    0: 'reached maximum number of allowed epochs',
+    1: '`gtol` termination condition is satisfied',
+    2: '`xtol` termination condition is satisfied',
+    3: '`ftol` termination condition is satisfied',
+    4: 'target cost reached for all cost functions',
 }
 
 default_options = {
     'verbose': True,
     'epochs': 2000,
-    'batch': False,
+    'batch_initial_parameters': False,
     'plot': True,
     'plot_period': 30,
     'save_period': 30,
@@ -81,8 +81,8 @@ def optimize(
                     print out the infidelity at each epoch step to track the progress of
                     the optimization.
                 - `epochs` (`int`, default: `2000`): Number of optimization epochs.
-                - `batch` (`bool`, default: False): Whether to batch over random
-                    initial parameters. If True, then `len(parameters)` defines the
+                - `batch_initial_parameters` (`bool`, default: False): Whether to batch
+                    over initial parameters. If True, then `len(parameters)` defines the
                     number of simulations to batch over. If False, then `parameters` is
                     assumed to not be batched.
                 - `plot` (`bool`, default: `True`): Whether to plot the results during
@@ -102,18 +102,39 @@ def optimize(
     Returns:
         Optimized parameters from the final timestep.
     """
-    step_fn, opt_state, plotter, opt_recorder, opt_options = _initialize(
-        parameters,
-        costs,
-        model,
-        optimizer,
-        plotter,
-        method,
-        gradient,
-        dq_options,
-        opt_options,
-        filepath,
+    # initialize
+    opt_options = {**default_options, **(opt_options or {})}
+    if 'ignore_termination' in opt_options:
+        warnings.warn(
+            "'ignore_termination' no longer accepted as an option and is now ignored",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        opt_options.pop('ignore_termination')
+    if 'all_costs' in opt_options:
+        warnings.warn(
+            "'all_costs' no longer accepted as an option and is now ignored: all cost"
+            ' functions must be below their target for the optimization to terminate.',
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        opt_options.pop('all_costs')
+    if (
+        opt_options['batch_initial_parameters']
+        and isinstance(parameters, list)
+        and isinstance(parameters[0], dict)
+    ):
+        raise ValueError('batching with lists of dicts not supported')
+
+    opt_recorder = OptimizerRecorder(parameters)
+    if filepath is not None:
+        print(f'saving results to {filepath}')
+
+    plotter = _initialize_plotter(plotter, model, opt_options)
+    step_fn, opt_state = _setup_optimization(
+        parameters, costs, model, optimizer, method, gradient, dq_options, opt_options
     )
+    epoch = 0
     termination_key = -1
     # trick for catching keyboard interrupt
     try:
@@ -142,19 +163,23 @@ def optimize(
     except KeyboardInterrupt:
         pass
 
-    print(TERMINATION_MESSAGES[termination_key])
     if epoch > 0:
-        _finalize(
-            parameters,
-            costs,
-            model,
-            plotter,
-            opt_options,
-            filepath,
-            aux,
-            epoch,
-            opt_recorder,
+        # save any unsaved data and make a final plot
+        total_cost, _, _, expects = aux
+        if filepath is not None and epoch > 0:
+            append_to_h5(filepath, opt_recorder.data_to_save(), opt_options)
+        carry = total_cost, opt_recorder.cost_values, expects, epoch, True
+        _plot(parameters, costs, model, plotter, opt_options, carry)
+        times = opt_recorder.epoch_times[1:]
+        print(
+            f'{TERMINATION_MESSAGES[termination_key]} \n'
+            f'optimization terminated after {epoch} epochs \n'
+            f'average epoch time (excluding jit) of {np.mean(times):.5f} s \n'
+            f'max epoch time of {np.max(times):.5f} s \n'
+            f'min epoch time of {np.min(times):.5f} s'
         )
+        if filepath is not None:
+            print(f'results saved to {filepath}')
 
     return parameters
 
@@ -242,7 +267,7 @@ def _plot(
     if override or (
         opt_options['plot'] and epoch % opt_options['plot_period'] == 0 and epoch > 0
     ):
-        if opt_options['batch']:
+        if opt_options['batch_initial_parameters']:
             # plot for the lowest cost
             minimum_cost_idx = np.argmin(total_cost)
             _cost_values_over_epochs = np.array(cost_values_over_epochs)[
@@ -300,65 +325,6 @@ def _run_epoch(
     return parameters, grads, opt_state, aux
 
 
-def _initialize(
-    parameters: ArrayLike | dict,
-    costs: Cost,
-    model: Model,
-    optimizer: GradientTransformation,
-    plotter: Plotter | None,
-    method: Method,
-    gradient: Gradient | None,
-    dq_options: dq.Options,
-    opt_options: dict | None,
-    filepath: str | None,
-) -> tuple[Callable, OptState, Plotter, OptimizerRecorder, dict]:
-    opt_options = {**default_options, **(opt_options or {})}
-    if (
-        opt_options['batch']
-        and isinstance(parameters, list)
-        and isinstance(parameters[0], dict)
-    ):
-        raise ValueError('batching with lists of dicts not supported')
-
-    opt_recorder = OptimizerRecorder(parameters)
-    if filepath is not None:
-        print(f'saving results to {filepath}')
-
-    plotter = _initialize_plotter(plotter, model, opt_options)
-    step_fn, opt_state = _setup_optimization(
-        parameters, costs, model, optimizer, method, gradient, dq_options, opt_options
-    )
-    return step_fn, opt_state, plotter, opt_recorder, opt_options
-
-
-def _finalize(
-    parameters: Array | dict,
-    costs: Cost,
-    model: Model,
-    plotter: Plotter | None,
-    opt_options: dict,
-    filepath: str | None,
-    aux: tuple,
-    epoch: int,
-    opt_recorder: OptimizerRecorder,
-):
-    # save any unsaved data and make a final plot
-    total_cost, _, _, expects = aux
-    if filepath is not None and epoch > 0:
-        append_to_h5(filepath, opt_recorder.data_to_save(), opt_options)
-    carry = total_cost, opt_recorder.cost_values, expects, epoch, True
-    _plot(parameters, costs, model, plotter, opt_options, carry)
-    times = opt_recorder.epoch_times[1:]
-    print(
-        f'optimization terminated after {epoch} epochs; \n'
-        f'average epoch time (excluding jit) of {np.mean(times):.5f} s; \n'
-        f'max epoch time of {np.max(times):.5f} s; \n'
-        f'min epoch time of {np.min(times):.5f} s'
-    )
-    if filepath is not None:
-        print(f'results saved to {filepath}')
-
-
 def _initialize_plotter(
     plotter: Plotter | None, model: Model, opt_options: dict
 ) -> Plotter | None:
@@ -407,7 +373,7 @@ def _setup_optimization(
     ) -> tuple[Array, TransformInitFn, OptState, tuple]:
         return jax.vmap(single_step, in_axes=(0, 0))(_parameters, _opt_state)
 
-    if opt_options['batch']:
+    if opt_options['batch_initial_parameters']:
         opt_state = [optimizer.init(param) for param in parameters]
         opt_state = jax.tree.map(lambda *args: jnp.stack(args), *opt_state)
         return batch_step, opt_state
@@ -438,7 +404,7 @@ def _check_for_termination(  # noqa PLR0911
     if _check_cost_tolerance(opt_recorder, opt_options):
         return True, 3
     # Check if all costs below targets
-    if _check_cost_targets(terminate_for_cost, opt_options['batch']):
+    if _check_cost_targets(terminate_for_cost, opt_options['batch_initial_parameters']):
         return True, 4
     return False, -1
 
@@ -468,7 +434,7 @@ def _check_cost_tolerance(opt_recorder: OptimizerRecorder, opt_options: dict) ->
     """Check if cost change is below tolerance."""
     current_total_cost, prev_total_cost = opt_recorder.total_costs[-2:]
     cost_diff = np.abs(current_total_cost - prev_total_cost)
-    if opt_options['batch']:
+    if opt_options['batch_initial_parameters']:
         max_idx = np.argmax(cost_diff)
         return cost_diff[max_idx] < opt_options['ftol'] * current_total_cost[max_idx]
     return cost_diff < opt_options['ftol'] * current_total_cost
