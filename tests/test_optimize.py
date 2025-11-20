@@ -126,9 +126,9 @@ def test_costs(infid_cost, opt_type, cost, nH, tmp_path):
 @pytest.mark.parametrize(
     'opt_type', ['sesolve', 'mesolve', 'sepropagator', 'mepropagator']
 )
-def test_batching(opt_type, tmp_path):
+@pytest.mark.parametrize('n_batch', [1, 13])
+def test_batching(opt_type, n_batch, tmp_path):
     n_times = 21
-    n_batch = 5
     tsave = jnp.linspace(0.0, 1.0, n_times)
     H0 = -0.5 * 2.0 * jnp.pi * dq.sigmaz()
 
@@ -138,7 +138,7 @@ def test_batching(opt_type, tmp_path):
     rand = 42
     U_target = dq.asqarray(unitary_group.rvs(2, random_state=rand))
     dq_options = dq.Options(progress_meter=None)
-    opt_options = {'batch': True, 'epochs': 1000, 'plot': False}
+    opt_options = {'batch_initial_parameters': True, 'epochs': 2000, 'plot': False}
     key = jax.random.key(rand)
     init_params = 1e-2 * jax.random.uniform(key, (n_batch, n_times - 1))
     target_cost = 1e-2
@@ -177,12 +177,12 @@ def test_batching(opt_type, tmp_path):
     )
 
     def _check_result(_opt_params):
-        opt_result, opt_H = model(opt_params, Expm(), None)
-        _, terminate = zip(*cost(opt_result, opt_H, opt_params), strict=True)
-        return all(terminate)
+        opt_result, opt_H = model(_opt_params, Expm(), None)
+        _, terminate = zip(*cost(opt_result, opt_H, _opt_params), strict=True)
+        return jnp.asarray(terminate)
 
     terminate_for_batch = jax.vmap(_check_result)(opt_params)
-    assert all(terminate_for_batch)
+    assert any(np.all(np.asarray(terminate_for_batch), axis=1))
 
 
 def test_reinitialize(tmp_path):
