@@ -87,8 +87,10 @@ def plot_fft(
     tsave = model.tsave_function(parameters)
     controls = get_controls(H, tsave)
     for control_idx, control in enumerate(controls):
-        y_fft = np.fft.fft(control)
-        n = len(control)
+        n_dims = len(control.shape)
+        control_to_plot = control[:, (n_dims - 1) * (0,)] if n_dims > 1 else control
+        y_fft = np.fft.fft(control_to_plot)
+        n = len(control_to_plot)
         dt = tsave[1] - tsave[0]
         freqs = np.fft.fftfreq(n, dt)
         ax.plot(freqs[: n // 2], np.abs(y_fft[: n // 2]), label=f'$H_{control_idx}$')
