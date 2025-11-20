@@ -103,8 +103,10 @@ def optimize(
     Returns:
         Optimized parameters from the final timestep.
     """
-    # initialize
-    opt_options = {**default_options, **(opt_options or {})}
+    # check opt_option keys and deprecated options
+    for key in opt_options:
+        if key not in default_options:
+            raise ValueError(f'{key} not a valid option')
     if 'ignore_termination' in opt_options:
         warnings.warn(
             "'ignore_termination' no longer accepted as an option and is now ignored",
@@ -120,6 +122,9 @@ def optimize(
             stacklevel=2,
         )
         opt_options.pop('all_costs')
+    # initialize with default options for those that aren't specified
+    opt_options = {**default_options, **(opt_options or {})}
+
     if (
         opt_options['batch_initial_parameters']
         and isinstance(parameters, list)
@@ -265,7 +270,7 @@ def _run_epoch(
                 print(cost, ' = ', value, '; ', end=' ')
             print('\n')
         else:
-            print(costs, cost_values[0])
+            print(costs, np.squeeze(cost_values))
 
     if filepath is not None and epoch > 0 and epoch % opt_options['save_period'] == 0:
         append_to_h5(filepath, opt_recorder.data_to_save(), opt_options)
@@ -360,7 +365,6 @@ def _check_for_termination(  # noqa PLR0911
 
 
 def _calculate_parameter_diff(opt_recorder: OptimizerRecorder) -> np.ndarray | float:
-    """Calculate total norm of difference between current and previous values."""
     current = opt_recorder.current_parameters
     previous = opt_recorder.previous_parameters
     if isinstance(current, dict):
@@ -374,7 +378,6 @@ def _calculate_parameter_diff(opt_recorder: OptimizerRecorder) -> np.ndarray | f
 
 
 def _calculate_total_norm(values: Array | dict) -> np.ndarray | float:
-    """Calculate total norm of values."""
     if isinstance(values, dict):
         return sum(_norm(val) for val in values.values())
     return _norm(values)
@@ -391,7 +394,10 @@ def _check_cost_tolerance(opt_recorder: OptimizerRecorder, opt_options: dict) ->
 
 
 def _check_cost_targets(terminate_for_cost: Array, is_batch: bool) -> bool:
-    """Check if cost targets have been met."""
+    """Check if cost targets have been met.
+
+    For batching, if at least one sim has all cost targets met, then break.
+    """
     if is_batch:
         return any(np.all(terminate_for_cost, axis=1))
     return all(terminate_for_cost)
