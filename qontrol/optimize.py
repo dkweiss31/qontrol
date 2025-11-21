@@ -172,7 +172,7 @@ def optimize(
     if epoch > 0:
         # save any unsaved data and make a final plot
         total_cost, _, _, expects = aux
-        if filepath is not None and epoch > 0:
+        if filepath is not None:
             append_to_h5(filepath, opt_recorder.data_to_save(), opt_options)
         carry = total_cost, opt_recorder.cost_values, expects, epoch, True
         _plot(parameters, costs, model, plotter, opt_options, carry)
