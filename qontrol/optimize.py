@@ -228,11 +228,12 @@ def _plot(
             _cost_values_over_epochs = np.array(cost_values_over_epochs)[
                 :, minimum_cost_idx
             ]
+            _expects = expects[minimum_cost_idx] if expects is not None else None
             plotter.update_plots(
                 parameters[minimum_cost_idx],
                 costs,
                 model,
-                expects[minimum_cost_idx],
+                _expects,
                 _cost_values_over_epochs,
                 epoch,
             )
