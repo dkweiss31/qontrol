@@ -83,8 +83,9 @@ def optimize(
                     the optimization.
                 - `epochs` (`int`, default: `2000`): Number of optimization epochs.
                 - `batch_initial_parameters` (`bool`, default: False): Whether to batch
-                    over initial parameters. If True, then `len(parameters)` defines the
-                    number of simulations to batch over. If False, then `parameters` is
+                    over initial parameters. If True, then the first dimension of `parameters`
+                    defines the number of simulations to batch over (note: not supported for
+                    dict parameters that are lists of dicts). If False, then `parameters` is
                     assumed to not be batched.
                 - `plot` (`bool`, default: `True`): Whether to plot the results during
                     the optimization (for the epochs where results are plotted,
