@@ -75,7 +75,7 @@ def optimize(
         method: Method passed to Dynamiqs.
         gradient: Gradient passed to Dynamiqs.
         filepath: Filepath of where to save optimization results.
-        dq_options : Options for the Dynamiqs integrator.
+        dq_options: Options for the Dynamiqs integrator.
         opt_options: Options for grape optimization.
             ??? info "Detailed `opt_options` API"
                 - `verbose` (`bool`, default: `True`): If `True`, the optimizer will
