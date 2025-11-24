@@ -103,10 +103,7 @@ def optimize(
     Returns:
         Optimized parameters from the final timestep.
     """
-    # check opt_option keys and deprecated options
-    for key in opt_options:
-        if key not in default_options:
-            raise ValueError(f'{key} not a valid option')
+    # check deprecated options
     if 'ignore_termination' in opt_options:
         warnings.warn(
             "'ignore_termination' no longer accepted as an option and is now ignored",
@@ -122,15 +119,22 @@ def optimize(
             stacklevel=2,
         )
         opt_options.pop('all_costs')
+    # check that passed keys are supported
+    for key in opt_options:
+        if key not in default_options:
+            raise ValueError(f'{key} not a valid option')
     # initialize with default options for those that aren't specified
     opt_options = {**default_options, **(opt_options or {})}
 
+    if opt_options['batch_initial_parameters'] and isinstance(parameters, dict):
+        raise ValueError('batching parameters with dicts not supported')
     if (
         opt_options['batch_initial_parameters']
         and isinstance(parameters, list)
+        and len(parameters) > 0
         and isinstance(parameters[0], dict)
     ):
-        raise ValueError('batching with lists of dicts not supported')
+        raise ValueError('batching parameters with lists of dicts not supported')
 
     opt_recorder = OptimizerRecorder(parameters)
     if filepath is not None:
@@ -178,10 +182,10 @@ def optimize(
         _plot(parameters, costs, model, plotter, opt_options, carry)
         times = opt_recorder.epoch_times[1:]
         print(
-            f'{TERMINATION_MESSAGES[termination_key]} \n'
-            f'optimization terminated after {epoch} epochs \n'
-            f'average epoch time (excluding jit) of {np.mean(times):.5f} s \n'
-            f'max epoch time of {np.max(times):.5f} s \n'
+            f'{TERMINATION_MESSAGES[termination_key]}\n'
+            f'optimization terminated after {epoch} epochs\n'
+            f'average epoch time (excluding jit) of {np.mean(times):.5f} s\n'
+            f'max epoch time of {np.max(times):.5f} s\n'
             f'min epoch time of {np.min(times):.5f} s'
         )
         if filepath is not None:
@@ -263,14 +267,22 @@ def _run_epoch(
     total_cost, cost_values, _, expects = aux
     opt_recorder.record_epoch(parameters, cost_values, elapsed, total_cost)
 
+    def _print_cost(_cost, _value):
+        if opt_options["batch_initial_parameters"]:
+            print(
+                f"    {_cost}; min = {np.min(_value):.3e}, max = {np.min(_value):.3e},"
+                f" avg = {np.mean(_value):.3e}, n_batch = {len(_value)}"
+            )
+        else:
+            print(f"    {_cost}; {np.squeeze(_value):.3e}")
+
     if opt_options['verbose']:
-        print(f'epoch: {epoch}, elapsed_time: {elapsed:.6f} s; ')
+        print(f'epoch: {epoch}, elapsed_time: {elapsed:.6f} s ')
         if isinstance(costs, SummedCost):
             for cost, value in zip(costs.costs, cost_values.T, strict=True):
-                print(cost, ' = ', value, '; ', end=' ')
-            print('\n')
+                _print_cost(cost, value)
         else:
-            print(costs, np.squeeze(cost_values))
+            _print_cost(costs, np.squeeze(cost_values))
 
     if filepath is not None and epoch > 0 and epoch % opt_options['save_period'] == 0:
         append_to_h5(filepath, opt_recorder.data_to_save(), opt_options)
@@ -348,15 +360,15 @@ def _check_for_termination(  # noqa PLR0911
         return False, -1
     if epoch == opt_options['epochs'] - 1:
         return True, 0
-    # Calculate parameter and gradient norms
+    # Calculate parameter and gradient norms, and relative cost difference
     dx = _calculate_parameter_diff(opt_recorder)
     dg = _calculate_total_norm(grads)
+    df = _calculate_rel_cost_diff(opt_recorder)
     if dg < opt_options['gtol']:
         return True, 1
     if dx < opt_options['xtol'] * (opt_options['xtol'] + dx):
         return True, 2
-    # Check df (if cost meaningfully changed)
-    if _check_cost_tolerance(opt_recorder, opt_options):
+    if df < opt_options['ftol']:
         return True, 3
     # Check if all costs below targets
     if _check_cost_targets(terminate_for_cost, opt_options['batch_initial_parameters']):
@@ -383,14 +395,11 @@ def _calculate_total_norm(values: Array | dict) -> np.ndarray | float:
     return _norm(values)
 
 
-def _check_cost_tolerance(opt_recorder: OptimizerRecorder, opt_options: dict) -> bool:
+def _calculate_rel_cost_diff(opt_recorder: OptimizerRecorder) -> bool:
     """Check if cost change is below tolerance."""
     current_total_cost, prev_total_cost = opt_recorder.total_costs[-2:]
     cost_diff = np.abs(current_total_cost - prev_total_cost)
-    if opt_options['batch_initial_parameters']:
-        max_idx = np.argmax(cost_diff)
-        return cost_diff[max_idx] < opt_options['ftol'] * current_total_cost[max_idx]
-    return cost_diff < opt_options['ftol'] * current_total_cost
+    return cost_diff / current_total_cost
 
 
 def _check_cost_targets(terminate_for_cost: Array, is_batch: bool) -> bool:

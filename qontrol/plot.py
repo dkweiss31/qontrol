@@ -70,7 +70,10 @@ def plot_controls(
         # If there are batch dimensions, H has been broadcast to have those same
         # dimensions: we only want to plot the controls without these batch dims
         n_dims = len(control.shape)
-        control_to_plot = control[:, (n_dims - 1) * (0,)] if n_dims > 1 else control
+        if n_dims > 1:
+            control_to_plot = control[(slice(None),) + (n_dims - 1) * (0,)]
+        else:
+            control_to_plot = control
         ax.plot(tsave, np.real(control_to_plot), label=H_labels[idx])
     ax.legend(loc='lower right', framealpha=0.0)
     ax.set_ylabel('pulse amplitude')
@@ -88,7 +91,10 @@ def plot_fft(
     controls = get_controls(H, tsave)
     for control_idx, control in enumerate(controls):
         n_dims = len(control.shape)
-        control_to_plot = control[:, (n_dims - 1) * (0,)] if n_dims > 1 else control
+        if n_dims > 1:
+            control_to_plot = control[(slice(None),) + (n_dims - 1) * (0,)]
+        else:
+            control_to_plot = control
         y_fft = np.fft.fft(control_to_plot)
         n = len(control_to_plot)
         dt = tsave[1] - tsave[0]
