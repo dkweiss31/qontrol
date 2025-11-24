@@ -402,7 +402,7 @@ def _calculate_rel_cost_diff(opt_recorder: OptimizerRecorder) -> bool:
     """Check if cost change is below tolerance."""
     current_total_cost, prev_total_cost = opt_recorder.total_costs[-2:]
     cost_diff = current_total_cost - prev_total_cost
-    return np.abs(cost_diff / current_total_cost)
+    return np.max(np.abs(cost_diff / current_total_cost))
 
 
 def _check_cost_targets(terminate_for_cost: Array, is_batch: bool) -> bool:
