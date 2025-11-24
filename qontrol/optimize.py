@@ -83,8 +83,9 @@ def optimize(
                     the optimization.
                 - `epochs` (`int`, default: `2000`): Number of optimization epochs.
                 - `batch_initial_parameters` (`bool`, default: False): Whether to batch
-                    over initial parameters. If True, then `len(parameters)` defines the
-                    number of simulations to batch over. If False, then `parameters` is
+                    over initial parameters. If True, then the first dimension of `parameters`
+                    defines the number of simulations to batch over (note: not supported for
+                    dict parameters that are lists of dicts). If False, then `parameters` is
                     assumed to not be batched.
                 - `plot` (`bool`, default: `True`): Whether to plot the results during
                     the optimization (for the epochs where results are plotted,
@@ -176,7 +177,7 @@ def optimize(
     if epoch > 0:
         # save any unsaved data and make a final plot
         total_cost, _, _, expects = aux
-        if filepath is not None and epoch > 0:
+        if filepath is not None:
             append_to_h5(filepath, opt_recorder.data_to_save(), opt_options)
         carry = total_cost, opt_recorder.cost_values, expects, epoch, True
         _plot(parameters, costs, model, plotter, opt_options, carry)
@@ -232,11 +233,12 @@ def _plot(
             _cost_values_over_epochs = np.array(cost_values_over_epochs)[
                 :, minimum_cost_idx
             ]
+            _expects = expects[minimum_cost_idx] if expects is not None else None
             plotter.update_plots(
                 parameters[minimum_cost_idx],
                 costs,
                 model,
-                expects[minimum_cost_idx],
+                _expects,
                 _cost_values_over_epochs,
                 epoch,
             )
