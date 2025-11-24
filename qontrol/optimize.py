@@ -83,10 +83,11 @@ def optimize(
                     the optimization.
                 - `epochs` (`int`, default: `2000`): Number of optimization epochs.
                 - `batch_initial_parameters` (`bool`, default: False): Whether to batch
-                    over initial parameters. If True, then the first dimension of `parameters`
-                    defines the number of simulations to batch over (note: not supported for
-                    dict parameters that are lists of dicts). If False, then `parameters` is
-                    assumed to not be batched.
+                    over initial parameters. If True, then the first dimension of
+                    `parameters` defines the number of simulations to batch over (note:
+                    not supported for parameters that are dictionaries or lists of
+                    dictionaries). If False, then `parameters` is assumed to not be
+                    batched.
                 - `plot` (`bool`, default: `True`): Whether to plot the results during
                     the optimization (for the epochs where results are plotted,
                     necessarily suffer a time penalty).
@@ -269,14 +270,14 @@ def _run_epoch(
     total_cost, cost_values, _, expects = aux
     opt_recorder.record_epoch(parameters, cost_values, elapsed, total_cost)
 
-    def _print_cost(_cost, _value):
-        if opt_options["batch_initial_parameters"]:
+    def _print_cost(_cost: Cost, _value: Array):
+        if opt_options['batch_initial_parameters']:
             print(
-                f"    {_cost}; min = {np.min(_value):.3e}, max = {np.min(_value):.3e},"
-                f" avg = {np.mean(_value):.3e}, n_batch = {len(_value)}"
+                f'    {_cost}; min = {np.min(_value):.3e}, max = {np.min(_value):.3e},'
+                f' avg = {np.mean(_value):.3e}, n_batch = {len(_value)}'
             )
         else:
-            print(f"    {_cost}; {np.squeeze(_value):.3e}")
+            print(f'    {_cost}; {np.squeeze(_value):.3e}')
 
     if opt_options['verbose']:
         print(f'epoch: {epoch}, elapsed_time: {elapsed:.6f} s ')
