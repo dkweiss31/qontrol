@@ -285,7 +285,7 @@ def _run_epoch(
             for cost, value in zip(costs.costs, cost_values.T, strict=True):
                 _print_cost(cost, value)
         else:
-            _print_cost(costs, np.squeeze(cost_values))
+            _print_cost(costs, cost_values[..., 0])
 
     if filepath is not None and epoch > 0 and epoch % opt_options['save_period'] == 0:
         append_to_h5(filepath, opt_recorder.data_to_save(), opt_options)
