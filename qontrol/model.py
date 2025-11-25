@@ -53,7 +53,7 @@ def sesolve_model(
 
         sesolve_model = ql.sesolve_model(H_pwc, psi0, tsave)
         ```
-        See for example [this tutorial](../examples/qubit).
+        See for example [this tutorial](examples/qubit.ipynb).
 
     ??? example "Spline control"
         In more complex cases, we can imagine that the optimized parameters
@@ -86,8 +86,6 @@ def sesolve_model(
 
         se_t_opt_Kerr_model = ql.sesolve_model(update_H_topt, psi0, update_tsave_topt)
         ```
-        See for example
-        [this tutorial](../examples/Kerr_oscillator#time-optimal-control).
 
     """
     H_function, tsave_or_function = _initialize_model(H_function, tsave_or_function)
@@ -137,7 +135,7 @@ def mesolve_model(
             update_H_topt, jump_ops, me_initial_states, update_tsave_topt
         )
         ```
-        See [this tutorial](../examples/Kerr_oscillator#master-equation-optimization)
+        See [this tutorial](examples/Kerr_oscillator.ipynb#master-equation-optimization)
         for example
     """
     H_function, tsave_function = _initialize_model(H_function, tsave_or_function)

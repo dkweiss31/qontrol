@@ -53,7 +53,7 @@ plotter = ql.custom_plotter(
      functools.partial(plot_states, which=1)]
 )
 ```
-See [this tutorial](../examples/qubit) for this sort of functionality in practice. Note there is no limit to the number of panels you can plot: plots will appear in rows with four plots in each row.
+See [this tutorial](examples/qubit.ipynb) for this sort of functionality in practice. Note there is no limit to the number of panels you can plot: plots will appear in rows with four plots in each row.
 
 ## How do I access the saved information?
 

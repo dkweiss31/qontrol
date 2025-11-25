@@ -208,7 +208,7 @@ def custom_plotter(plotting_functions: list[Callable]) -> Plotter:
             ]
         )
         ```
-        See for example [this tutorial](../examples/qubit).
+        See for example [this tutorial](examples/qubit.ipynb).
     """
     return Plotter(plotting_functions)
 

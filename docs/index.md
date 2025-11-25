@@ -76,7 +76,7 @@ the cost functions, which tell the optimizer how to update `parameters`.
 
 ## Jump in
 
-If this has piqued your interest, please see the example jupyter notebooks that demonstrate different use cases of `qontrol`, including optimizing gates on a qubit to be [robust to frequency variations](examples/qubit) as well as performing [time-optimal control](examples/Kerr_oscillator#time-optimal-control) and [master-equation optimization](examples/Kerr_oscillator#master-equation-optimization). More examples coming soon!
+If this has piqued your interest, please see the example jupyter notebooks that demonstrate different use cases of `qontrol`, including [batching over many random pulses](examples/Kerr_oscillator.ipynb), optimizing gates on a qubit to be [robust to frequency variations](examples/qubit.ipynb), and [master-equation optimization](examples/Kerr_oscillator.ipynb#master-equation-optimization). More examples coming soon!
 
 ## Citation
 
