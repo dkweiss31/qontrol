@@ -74,7 +74,7 @@ def setup_Kerr_osc(nH=None):
 def test_costs(infid_cost, opt_type, cost, nH, tmp_path):
     filepath = _filepath(tmp_path)
     H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc(nH)
-    optimizer_options = {'epochs': 600, 'all_costs': True, 'plot': False}
+    optimizer_options = {'epochs': 600, 'plot': False}
     dq_options = dq.Options(progress_meter=None)
     # only utilized if cost == "forbid"
     dim = H_func(init_drive_params).shape[-1]
@@ -123,6 +123,68 @@ def test_costs(infid_cost, opt_type, cost, nH, tmp_path):
     assert all(terminate)
 
 
+@pytest.mark.parametrize(
+    'opt_type', ['sesolve', 'mesolve', 'sepropagator', 'mepropagator']
+)
+@pytest.mark.parametrize('n_batch', [1, 13])
+def test_batching(opt_type, n_batch, tmp_path):
+    n_times = 21
+    tsave = jnp.linspace(0.0, 1.0, n_times)
+    H0 = -0.5 * 2.0 * jnp.pi * dq.sigmaz()
+
+    def H_func(parameters):
+        return H0 + dq.pwc(tsave, parameters, dq.sigmax())
+
+    rand = 42
+    U_target = dq.asqarray(unitary_group.rvs(2, random_state=rand))
+    dq_options = dq.Options(progress_meter=None)
+    opt_options = {'batch_initial_parameters': True, 'epochs': 2000, 'plot': False}
+    key = jax.random.key(rand)
+    init_params = 1e-2 * jax.random.uniform(key, (n_batch, n_times - 1))
+    target_cost = 1e-2
+    psi0 = dq.fock(2, 0)
+    psi1 = dq.fock(2, 1)
+    psip = (psi0 + psi1).unit()
+    psim = (psi0 + 1j * psi1).unit()
+    psi_init = dq.asqarray([psi0, psi1, psip, psim])
+    psi_final = U_target @ psi_init
+    if opt_type == 'sesolve':
+        model = sesolve_model(H_func, psi_init, tsave)
+        cost = incoherent_infidelity(psi_final, target_cost=target_cost)
+        cost += 0.01 * control_norm(2.0 * jnp.pi * 0.005, target_cost=0.1)
+    elif opt_type == 'sepropagator':
+        model = sepropagator_model(H_func, tsave)
+        cost = propagator_infidelity(U_target, target_cost=target_cost)
+    else:
+        jump_ops = [1e-6 * dq.sigmam()]
+        if opt_type == 'mesolve':
+            model = mesolve_model(H_func, jump_ops, dq.todm(psi_init), tsave)
+            cost = incoherent_infidelity(dq.todm(psi_final), target_cost=target_cost)
+        else:
+            U_target = dq.sprepost(U_target, U_target.dag())
+            model = mepropagator_model(H_func, jump_ops, tsave)
+            cost = propagator_infidelity(U_target, target_cost=target_cost)
+
+    opt_params = optimize(
+        init_params,
+        cost,
+        model,
+        filepath=_filepath(tmp_path),
+        optimizer=optax.adam(0.003, b1=0.99, b2=0.99),
+        opt_options=opt_options,
+        dq_options=dq_options,
+        method=Expm(),
+    )
+
+    def _check_result(_opt_params):
+        opt_result, opt_H = model(_opt_params, Expm(), None)
+        _, terminate = zip(*cost(opt_result, opt_H, _opt_params), strict=True)
+        return jnp.asarray(terminate)
+
+    terminate_for_batch = jax.vmap(_check_result)(opt_params)
+    assert any(np.all(np.asarray(terminate_for_batch), axis=1))
+
+
 def test_reinitialize(tmp_path):
     filepath = _filepath(tmp_path)
     H_func, tsave, psi0, init_drive_params, target_states = setup_Kerr_osc()
@@ -156,6 +218,11 @@ def test_save_period(tmp_path):
     data_21 = _setup_and_run(filepath_21, optimizer_options_21)
     for key, val_1 in data_1.items():
         assert np.allclose(val_1, data_21[key])
+    all_data = [data_1, data_21]
+    for data in all_data:
+        vals = list(data.values())
+        len0 = len(vals[0])
+        assert all(len(val) == len0 for val in vals)
 
 
 def _setup_and_run(filepath: str, opt_options: dict):

@@ -14,7 +14,7 @@ from .model import Model
 
 
 def plot_costs(
-    ax: Axes, costs: Cost, epoch: int, cost_values_over_epochs: list
+    ax: Axes, costs: Cost, epoch: int, cost_values_over_epochs: list | np.ndarray
 ) -> Axes:
     """Plot the evolution of the cost function values."""
     ax.set_facecolor('none')
@@ -67,7 +67,14 @@ def plot_controls(
     controls = get_controls(H, tsave)
     H_labels = [f'$H_{idx}$' for idx in range(len(controls))]
     for idx, control in enumerate(controls):
-        ax.plot(tsave, np.real(control), label=H_labels[idx])
+        # If there are batch dimensions, H has been broadcast to have those same
+        # dimensions: we only want to plot the controls without these batch dims
+        n_dims = len(control.shape)
+        if n_dims > 1:
+            control_to_plot = control[(slice(None),) + (n_dims - 1) * (0,)]
+        else:
+            control_to_plot = control
+        ax.plot(tsave, np.real(control_to_plot), label=H_labels[idx])
     ax.legend(loc='lower right', framealpha=0.0)
     ax.set_ylabel('pulse amplitude')
     ax.set_xlabel('time [ns]')
@@ -83,8 +90,13 @@ def plot_fft(
     tsave = model.tsave_function(parameters)
     controls = get_controls(H, tsave)
     for control_idx, control in enumerate(controls):
-        y_fft = np.fft.fft(control)
-        n = len(control)
+        n_dims = len(control.shape)
+        if n_dims > 1:
+            control_to_plot = control[(slice(None),) + (n_dims - 1) * (0,)]
+        else:
+            control_to_plot = control
+        y_fft = np.fft.fft(control_to_plot)
+        n = len(control_to_plot)
         dt = tsave[1] - tsave[0]
         freqs = np.fft.fftfreq(n, dt)
         ax.plot(freqs[: n // 2], np.abs(y_fft[: n // 2]), label=f'$H_{control_idx}$')
@@ -196,7 +208,7 @@ def custom_plotter(plotting_functions: list[Callable]) -> Plotter:
             ]
         )
         ```
-        See for example [this tutorial](../examples/qubit).
+        See for example [this tutorial](examples/qubit.ipynb).
     """
     return Plotter(plotting_functions)
 
@@ -212,7 +224,7 @@ class Plotter:
         costs: Cost,
         model: Model,
         expects: Array | None,
-        cost_values_over_epochs: list,
+        cost_values_over_epochs: list | np.ndarray,
         epoch: int,
     ):
         clear_output(wait=True)
@@ -230,6 +242,7 @@ class Plotter:
             )
         plt.tight_layout()
         plt.show()
+        plt.close()
 
 
 class DefaultPlotter(Plotter):
