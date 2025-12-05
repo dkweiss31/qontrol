@@ -1,4 +1,5 @@
 import dynamiqs as dq
+import jax.numpy as jnp
 from jax.random import PRNGKey
 
 import qontrol as ql
@@ -35,3 +36,13 @@ def test_mul():
     for cost in costs:
         new_cost = 2.0 * cost
         assert new_cost.cost_multiplier == 2.0
+
+
+def test_control():
+    cost = ql.control_norm(threshold=1.0)
+    H = dq.sigmax() + dq.modulated(lambda _t: 1.0, dq.sigmaz())
+    H += dq.pwc([0.0, 1.0], [1.0], dq.sigmay())
+    H += H.dag()
+    result = dq.sesolve(H, dq.basis(2, 0), jnp.linspace(0.0, 1.0, 11))
+    ((cost_val, _),) = cost(result, H, None)
+    assert jnp.allclose(cost_val, 0.0)
