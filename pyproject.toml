@@ -1,6 +1,6 @@
 [project]
 name = "qontrol"
-version = "0.2.4"
+version = "0.3.1"
 requires-python = ">=3.10"
 description = "Optimal control wrapper of dynamiqs."
 dependencies = [
