@@ -437,20 +437,19 @@ class ControlCost(Cost):
         dt = result.tsave[1] - result.tsave[0]
 
         def _evaluate_at_tsave(_H: TimeQArray) -> Array:
-            if not isinstance(_H, ConstantTimeQArray):
+            if not isinstance(_H, SummedTimeQArray | ConstantTimeQArray):
                 return jnp.sum(func(_H.prefactor(result.tsave))) * dt
-            return jnp.array(0.0)
-
-        if isinstance(H, SummedTimeQArray):
-            control_val = 0.0
+            if isinstance(_H, ConstantTimeQArray):
+                return jnp.array(0.0)
+            # SummedTimeQArray if we're here
             # ugly for loop, having trouble with vmap or scan because only PWCTimeQArray
             # and ModulatedTimeQArray have attributes prefactor
-            for _H in H.timeqarrays:
-                control_val += _evaluate_at_tsave(_H)
-        else:
-            control_val = _evaluate_at_tsave(H)
+            control_val = 0.0
+            for __H in _H.timeqarrays:
+                control_val += _evaluate_at_tsave(__H)
+            return control_val
 
-        return control_val
+        return _evaluate_at_tsave(H)
 
 
 class ControlCostNorm(ControlCost):
