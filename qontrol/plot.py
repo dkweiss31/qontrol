@@ -14,12 +14,12 @@ from .model import Model
 
 
 def plot_costs(
-    ax: Axes, costs: Cost, epoch: int, cost_values_over_epochs: list | np.ndarray
+    ax: Axes, costs: Cost, cost_values_over_epochs: list | np.ndarray
 ) -> Axes:
     """Plot the evolution of the cost function values."""
     ax.set_facecolor('none')
-    epoch_range = np.arange(epoch + 1)
     cost_values_over_epochs = np.asarray(cost_values_over_epochs).T
+    epoch_range = np.arange(len(cost_values_over_epochs[0]))
     if isinstance(costs, SummedCost):
         for _cost, _cost_value in zip(
             costs.costs, cost_values_over_epochs, strict=True
@@ -225,7 +225,6 @@ class Plotter:
         model: Model,
         expects: Array | None,
         cost_values_over_epochs: list | np.ndarray,
-        epoch: int,
     ):
         clear_output(wait=True)
         n_col = 4 if self.n_plots >= 4 else self.n_plots
@@ -234,7 +233,7 @@ class Plotter:
         if n_rows == 1:
             axes = axes[None]
         fig.patch.set_alpha(0.1)
-        axes[0, 0] = plot_costs(axes[0, 0], costs, epoch, cost_values_over_epochs)
+        axes[0, 0] = plot_costs(axes[0, 0], costs, cost_values_over_epochs)
         for plot_idx in range(self.n_plots - 1):
             row_idx, col_idx = np.unravel_index(1 + plot_idx, (n_rows, n_col))
             axes[row_idx, col_idx] = self.plotting_functions[plot_idx](

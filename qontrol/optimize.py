@@ -241,11 +241,10 @@ def _plot(
                 model,
                 _expects,
                 _cost_values_over_epochs,
-                epoch,
             )
         else:
             plotter.update_plots(
-                parameters, costs, model, expects, cost_values_over_epochs, epoch
+                parameters, costs, model, expects, cost_values_over_epochs
             )
 
 
