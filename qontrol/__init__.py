@@ -25,7 +25,6 @@ from .optimize import optimize as optimize
 from .plot import (
     custom_plotter as custom_plotter,
     DefaultPlotter as DefaultPlotter,
-    get_controls as get_controls,
     plot_controls as plot_controls,
     plot_costs as plot_costs,
     plot_expects as plot_expects,
@@ -38,6 +37,7 @@ from .utils.file_io import (
     extract_info_from_h5 as extract_info_from_h5,
     generate_file_path as generate_file_path,
 )
+from .utils.utils import get_hamiltonians as get_hamiltonians
 
 
 __version__ = version(__package__)
