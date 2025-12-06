@@ -1,4 +1,5 @@
 import dynamiqs as dq
+import jax
 import jax.numpy as jnp
 from jax.random import PRNGKey
 
@@ -38,11 +39,30 @@ def test_mul():
         assert new_cost.cost_multiplier == 2.0
 
 
-def test_control():
-    cost = ql.control_norm(threshold=1.0)
+def _nested_H():
     H = dq.sigmax() + dq.modulated(lambda _t: 1.0, dq.sigmaz())
     H += dq.pwc([0.0, 1.0], [1.0], dq.sigmay())
     H += H.dag()
+    return H
+
+
+def test_get_hamiltonians():
+    H = _nested_H()
+    H_list = ql.get_hamiltonians(H)
+    H_list_ideal = [
+        dq.modulated(lambda _t: 1.0, dq.sigmaz()),
+        dq.pwc([0.0, 1.0], [1.0], dq.sigmay()),
+        dq.modulated(lambda _t: 1.0, dq.sigmaz()),
+        dq.pwc([0.0, 1.0], [1.0], dq.sigmay()),
+    ]
+    for _H, _H_ideal in zip(H_list, H_list_ideal, strict=True):
+        assert jnp.allclose(_H.qarray.to_jax(), _H_ideal.qarray.to_jax())
+        assert _H.prefactor(0.5) == _H_ideal.prefactor(0.5)
+
+
+def test_control():
+    cost = ql.control_norm(threshold=1.0)
+    H = _nested_H()
     result = dq.sesolve(H, dq.basis(2, 0), jnp.linspace(0.0, 1.0, 11))
-    ((cost_val, _),) = cost(result, H, None)
+    ((cost_val, _),) = jax.jit(cost)(result, H, None)
     assert jnp.allclose(cost_val, 0.0)

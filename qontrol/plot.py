@@ -4,13 +4,13 @@ from collections.abc import Callable
 
 import matplotlib.pyplot as plt
 import numpy as np
-from dynamiqs.time_qarray import ConstantTimeQArray, SummedTimeQArray, TimeQArray
 from IPython.display import clear_output
 from jax import Array
 from matplotlib.pyplot import Axes
 
 from .cost import Cost, SummedCost
 from .model import Model
+from .utils.utils import get_hamiltonians
 
 
 def plot_costs(
@@ -37,24 +37,13 @@ def plot_costs(
     return ax
 
 
-def get_controls(H: TimeQArray, tsave: np.ndarray) -> list[np.ndarray]:
-    """Extract the Hamiltonian prefactors at the supplied times."""
-
-    def evaluate_at_tsave(_H: TimeQArray) -> np.ndarray:
-        if not isinstance(_H, ConstantTimeQArray):
-            return _H.prefactor(tsave)
-        return np.zeros_like(tsave)
-
-    controls = []
-    if isinstance(H, SummedTimeQArray):
-        for _H in H.timeqarrays:
-            if isinstance(_H, ConstantTimeQArray):
-                controls.insert(0, evaluate_at_tsave(_H))
-            else:
-                controls.append(evaluate_at_tsave(_H))
-    else:
-        controls.append(evaluate_at_tsave(H))
-    return controls
+def _get_control_to_plot(control: Array) -> Array:
+    # If there are batch dimensions, H has been broadcast to have those same
+    # dimensions: we only want to plot the controls without these batch dims
+    n_dims = len(control.shape)
+    if n_dims > 1:
+        return control[(slice(None),) + (n_dims - 1) * (0,)]
+    return control
 
 
 def plot_controls(
@@ -64,16 +53,10 @@ def plot_controls(
     ax.set_facecolor('none')
     H = model.H_function(parameters)
     tsave = model.tsave_function(parameters)
-    controls = get_controls(H, tsave)
+    controls = [_H.prefactor(tsave) for _H in get_hamiltonians(H)]
     H_labels = [f'$H_{idx}$' for idx in range(len(controls))]
     for idx, control in enumerate(controls):
-        # If there are batch dimensions, H has been broadcast to have those same
-        # dimensions: we only want to plot the controls without these batch dims
-        n_dims = len(control.shape)
-        if n_dims > 1:
-            control_to_plot = control[(slice(None),) + (n_dims - 1) * (0,)]
-        else:
-            control_to_plot = control
+        control_to_plot = _get_control_to_plot(control)
         ax.plot(tsave, np.real(control_to_plot), label=H_labels[idx])
     ax.legend(loc='lower right', framealpha=0.0)
     ax.set_ylabel('pulse amplitude')
@@ -88,13 +71,9 @@ def plot_fft(
     ax.set_facecolor('none')
     H = model.H_function(parameters)
     tsave = model.tsave_function(parameters)
-    controls = get_controls(H, tsave)
+    controls = [_H.prefactor(tsave) for _H in get_hamiltonians(H)]
     for control_idx, control in enumerate(controls):
-        n_dims = len(control.shape)
-        if n_dims > 1:
-            control_to_plot = control[(slice(None),) + (n_dims - 1) * (0,)]
-        else:
-            control_to_plot = control
+        control_to_plot = _get_control_to_plot(control)
         y_fft = np.fft.fft(control_to_plot)
         n = len(control_to_plot)
         dt = tsave[1] - tsave[0]
