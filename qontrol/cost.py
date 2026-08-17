@@ -342,6 +342,8 @@ class SummedCost(eqx.Module):
         return SummedCost(costs)
 
     def __add__(self, other: Cost) -> SummedCost:
+        if isinstance(other, SummedCost):
+            return SummedCost([*self.costs, *other.costs])
         if isinstance(other, Cost):
             return SummedCost([*self.costs, other])
         raise NotImplementedError
