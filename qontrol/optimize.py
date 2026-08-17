@@ -273,7 +273,7 @@ def _run_epoch(
     def _print_cost(_cost: Cost, _value: Array):
         if opt_options['batch_initial_parameters']:
             print(
-                f'    {_cost}; min = {np.min(_value):.3e}, max = {np.min(_value):.3e},'
+                f'    {_cost}; min = {np.min(_value):.3e}, max = {np.max(_value):.3e},'
                 f' avg = {np.mean(_value):.3e}, n_batch = {len(_value)}'
             )
         else:
