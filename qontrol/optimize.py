@@ -365,11 +365,12 @@ def _check_for_termination(  # noqa PLR0911
         return True, 0
     # Calculate parameter and gradient norms, and relative cost difference
     dx = _calculate_parameter_diff(opt_recorder)
+    x = _calculate_total_norm(opt_recorder.current_parameters)
     dg = _calculate_total_norm(grads)
     df = _calculate_rel_cost_diff(opt_recorder)
     if dg < opt_options['gtol']:
         return True, 1
-    if dx < opt_options['xtol'] * (opt_options['xtol'] + dx):
+    if dx < opt_options['xtol'] * (opt_options['xtol'] + x):
         return True, 2
     if df < opt_options['ftol']:
         return True, 3
