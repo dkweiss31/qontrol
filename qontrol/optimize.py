@@ -105,6 +105,8 @@ def optimize(
     Returns:
         Optimized parameters from the final timestep.
     """
+    opt_options = dict(opt_options) if opt_options else {}
+
     # check deprecated options
     if 'ignore_termination' in opt_options:
         warnings.warn(
