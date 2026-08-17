@@ -341,6 +341,9 @@ class SummedCost(eqx.Module):
         costs = [cost * y for cost in self.costs]
         return SummedCost(costs)
 
+    def __rmul__(self, other: float) -> Cost:
+        return self * other
+
     def __add__(self, other: Cost) -> SummedCost:
         if isinstance(other, SummedCost):
             return SummedCost([*self.costs, *other.costs])
