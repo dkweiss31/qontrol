@@ -170,8 +170,6 @@ def optimize(
             if terminate:
                 break
 
-            opt_recorder.previous_parameters = parameters
-
     except KeyboardInterrupt:
         pass
 
@@ -261,13 +259,14 @@ def _run_epoch(
     step_fn: Callable,
 ) -> tuple[Array | dict, TransformInitFn, OptState, tuple]:
     start_time = time.time()
+    evaluated_parameters = parameters
     parameters, grads, opt_state, aux = jax.block_until_ready(
         step_fn(parameters, opt_state)
     )
     elapsed = time.time() - start_time
 
     total_cost, cost_values, _, expects = aux
-    opt_recorder.record_epoch(parameters, cost_values, elapsed, total_cost)
+    opt_recorder.record_epoch(evaluated_parameters, cost_values, elapsed, total_cost)
 
     def _print_cost(_cost: Cost, _value: Array):
         if opt_options['batch_initial_parameters']:
