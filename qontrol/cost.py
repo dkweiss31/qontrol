@@ -422,11 +422,14 @@ class ForbiddenStates(Cost):
     ) -> tuple[tuple[Array, Array]]:
         # states has dims ...stid, where s is initial_states batching, t has dimension
         # of tsave and id are the state dimensions. Want it to be stfid
+        dt = result.tsave[1] - result.tsave[0]
         states = result.states[..., None, :, :]
         forbidden_ovlps = states.dag() @ self.forbidden_states
         if not isket(result.states):
             forbidden_ovlps = forbidden_ovlps.trace()
-        forbidden_pops = jnp.real(jnp.sum(forbidden_ovlps * jnp.conj(forbidden_ovlps)))
+        forbidden_pops = jnp.real(
+            jnp.sum(forbidden_ovlps * jnp.conj(forbidden_ovlps)) * dt
+        )
         cost = self.cost_multiplier * forbidden_pops
         return ((cost, cost < self.target_cost),)
 
