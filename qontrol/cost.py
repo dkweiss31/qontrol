@@ -315,9 +315,11 @@ class Cost(eqx.Module):
             return SummedCost([self, other])
         raise NotImplementedError
 
-    def __mul__(self, other: float | int) -> Cost:
+    def __mul__(self, other: float) -> Cost:
         if not isinstance(other, float | int):
-            raise TypeError('Only real scalar multiplication of cost functions is supported')
+            raise TypeError(
+                'Only real scalar multiplication of cost functions is supported'
+            )
         return eqx.tree_at(
             lambda x: x.cost_multiplier, self, self.cost_multiplier * other
         )
@@ -337,7 +339,7 @@ class SummedCost(eqx.Module):
     ) -> list[Array]:
         return [cost(result, H, parameters)[0] for cost in self.costs]
 
-    def __mul__(self, y: float | int) -> SummedCost:
+    def __mul__(self, y: float) -> SummedCost:
         costs = [cost * y for cost in self.costs]
         return SummedCost(costs)
 
