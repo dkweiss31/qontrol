@@ -103,7 +103,7 @@ def optimize(
                     norm of the gradient falls below this level.
 
     Returns:
-        Optimized parameters from the final timestep.
+        Optimized parameters from the last evaluated timestep.
     """
     opt_options = dict(opt_options) if opt_options else {}
 
@@ -181,7 +181,9 @@ def optimize(
         if filepath is not None:
             append_to_h5(filepath, opt_recorder.data_to_save(), opt_options)
         carry = total_cost, opt_recorder.cost_values, expects, epoch, True
-        _plot(parameters, costs, model, plotter, opt_options, carry)
+        _plot(
+            opt_recorder.current_parameters, costs, model, plotter, opt_options, carry
+        )
         times = opt_recorder.epoch_times[1:]
         print(
             f'{TERMINATION_MESSAGES[termination_key]}\n'
@@ -193,7 +195,7 @@ def optimize(
         if filepath is not None:
             print(f'results saved to {filepath}')
 
-    return parameters
+    return opt_recorder.current_parameters
 
 
 def loss(
@@ -291,7 +293,7 @@ def _run_epoch(
         append_to_h5(filepath, opt_recorder.data_to_save(), opt_options)
         opt_recorder.reset(epoch)
     carry = total_cost, opt_recorder.cost_values, expects, epoch, False
-    _plot(parameters, costs, model, plotter, opt_options, carry)
+    _plot(evaluated_parameters, costs, model, plotter, opt_options, carry)
     return parameters, grads, opt_state, aux
 
 
