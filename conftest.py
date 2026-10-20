@@ -38,6 +38,7 @@ def _mpl_params():
 pytest_collect_file = Sybil(
     parsers=[DocTestParser(), PythonCodeBlockParser(), SkipParser()],
     patterns=['*.md'],
+    excludes=['examples/*.md'],
     setup=sybil_setup,
     fixtures=['_mpl_params'],
 ).pytest()
