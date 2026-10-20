@@ -41,6 +41,7 @@ def H_pwc(drive_params):
         H += dq.pwc(tsave, drive_params[idx], _H1)
     return H
 
+
 initial_states = [dq.basis(n, 0), dq.basis(n, 1)]
 # We can track the behavior of observables by passing them to the model. Here we track
 # the state populations
@@ -54,7 +55,7 @@ parameters = seed_amplitude * jnp.ones((len(H1s), ntimes - 1))
 target_states = [-1j * dq.basis(n, 1), 1j * dq.basis(n, 0)]
 cost = ql.cost.coherent_infidelity(target_states=target_states, target_cost=0.001)
 optimizer = optax.adam(learning_rate=0.0001)
-opt_options = {"verbose": False, "plot": True, "plot_period": 5}
+opt_options = {'verbose': False, 'plot': True, 'plot_period': 5}
 dq_options = dq.Options(save_states=False, progress_meter=None)
 
 # run optimization

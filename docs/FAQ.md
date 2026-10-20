@@ -12,14 +12,11 @@ max_amp = 2.0 * jnp.pi * 0.01
 tsave = jnp.linspace(0, 40.0, 31)
 parameters = jnp.zeros((len(H1s), len(tsave) - 1))
 
+
 def H_pwc(drive_params):
     H = H0
     for idx, _H1 in enumerate(H1s):
-        clipped_drive = jnp.clip(
-            drive_params[idx],
-            a_min=-max_amp,
-            a_max=max_amp,
-        )
+        clipped_drive = jnp.clip(drive_params[idx], a_min=-max_amp, a_max=max_amp)
         H += dq.pwc(tsave, clipped_drive, _H1)
     return H
 ```
@@ -38,7 +35,8 @@ We provide functionality for the user to plot whatever quantities they'd like to
 ```python
 n_batch = 21
 
-def plot_states(ax, expects, model, parameters, which=0,):
+
+def plot_states(ax, expects, model, parameters, which=0):
     ax.set_facecolor('none')
     tsave = model.tsave_function(parameters)
     for batch_idx in range(n_batch):
@@ -47,10 +45,13 @@ def plot_states(ax, expects, model, parameters, which=0,):
     ax.set_ylabel(f'population in $|1\\rangle$ for initial state $|{which}\\rangle$')
     return ax
 
+
 plotter = ql.custom_plotter(
-    [ql.plot_controls,
-     functools.partial(plot_states, which=0),
-     functools.partial(plot_states, which=1)]
+    [
+        ql.plot_controls,
+        functools.partial(plot_states, which=0),
+        functools.partial(plot_states, which=1),
+    ]
 )
 ```
 See [this tutorial](examples/qubit.ipynb) for this sort of functionality in practice. Note there is no limit to the number of panels you can plot: plots will appear in rows with four plots in each row.

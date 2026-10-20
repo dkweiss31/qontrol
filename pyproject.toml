@@ -10,12 +10,12 @@ dependencies = [
     "jaxlib",
     "jaxtyping",
     "jupyter",
-    "h5py",
+    "h5py<3.16", # 3.16 raises TypeError writing an empty slice in append_to_h5 (see qontrol/utils/file_io.py)
     "diffrax>=0.6.1", # in keeping with dynamiqs
     "equinox",
     "ipython",
     "optax",
-    "dynamiqs>=0.3.2", # version supporting QArray; Solver->Method change
+    "dynamiqs>=0.3.2,<0.3.5", # version supporting QArray; Solver->Method change; 0.3.5 regresses QArray indexing (test_*_forbidden_states), 0.3.6 drops the `options` kwarg on sesolve/mesolve/(se|me)propagator
 ]
 
 [build-system]
@@ -24,24 +24,15 @@ build-backend = "flit_core.buildapi"
 
 [project.optional-dependencies]
 dev = [
-    "taskipy",
+    "taskipy>=1.14",  # older versions don't support the cmd/help table syntax used below
     "ruff",
     "codespell",
     "pygments",
     "pytest",
     "pytest-xdist",
     "pymdown-extensions",
-    "mkdocs",
-    "mkdocs-material",
-    "mkdocstrings[python]",
-    "mkdocs-gen-files",
-    "mkdocs-literate-nav",
-    "mkdocs-section-index",
-    "mkdocs-simple-hooks",
-    "mkdocs-glightbox",
-    "mkdocs-exclude",
-    "mknotebooks",
-    "nbconvert==6.5.0",
+    "zensical",
+    "mkdocstrings[python]>=1.0.7",  # <1.0.7 breaks with pymdown-extensions>=12.2 (missing 'md' arg)
     "sybil[pytest]",
     "black",  # needed by mkdocstrings to format function signatures
 ]
@@ -71,7 +62,7 @@ ignore = [
     "INP001",
     "TRY003",
     "PLC0414",
-    "PLR0912", "PLR0913", "PLR0915", "PLR2004",
+    "PLR0912", "PLR0913", "PLR0915", "PLR0917", "PLR2004",
     "T201",
 ]
 
@@ -134,11 +125,11 @@ cmd = 'task doctest-code && task doctest-docs'
 help = "check all examples (doctest)"
 
 [tool.taskipy.tasks.docbuild]
-cmd = 'mkdocs build'
+cmd = 'zensical build'
 help = "build the documentation website"
 
 [tool.taskipy.tasks.docserve]
-cmd = 'mkdocs serve'
+cmd = 'zensical serve'
 help = "preview documentation website with hot-reloading"
 
 [tool.taskipy.tasks.all]
