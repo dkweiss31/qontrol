@@ -9,6 +9,7 @@ edit_uri: ""
 
 theme:
     name: material
+    variant: classic
     features:
         - navigation.tabs # Tabs on top
         - navigation.sections  # Sections are included in the navigation on the left.
@@ -55,7 +56,6 @@ markdown_extensions:
 plugins:
     - search  # default search plugin; needs manually re-enabling when using any other plugins
     - autorefs  # Cross-links to headings
-    - mknotebooks  # Jupyter notebooks
     - mkdocstrings:
         handlers:
             python:
@@ -80,8 +80,8 @@ plugins:
 nav:
     - Getting Started: index.md
     - Examples:
-        - Qubit: examples/qubit.ipynb
-        - Kerr Oscillator: examples/Kerr_oscillator.ipynb
+        - Qubit: examples/qubit.md
+        - Kerr Oscillator: examples/Kerr_oscillator.md
     - API: api.md
     - Misc: 
         - FAQ: FAQ.md

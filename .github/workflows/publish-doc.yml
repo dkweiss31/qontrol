@@ -7,7 +7,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   # cancel previous runs of this workflow
@@ -17,8 +19,13 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
+      - uses: actions/configure-pages@v6
+
       - uses: actions/checkout@v3
 
       - name: Set up Python 3.10.14
@@ -37,7 +44,13 @@ jobs:
         run: python -m pip list
 
       - name: Build Docs
-        run: mkdocs build
+        run: zensical build --clean
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
 
       - name: Publish website
-        run: mkdocs gh-deploy --force
+        id: deployment
+        uses: actions/deploy-pages@v5
