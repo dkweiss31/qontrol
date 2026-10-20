@@ -41,6 +41,8 @@ def append_to_h5(filepath: str, data_dict: dict, param_dict: dict) -> None:
     with h5py.File(filepath, 'a') as f:
         for key, val in data_dict.items():
             _val = np.asarray(val)
+            if _val.shape[0] == 0:
+                continue
             if key not in f:
                 f.create_dataset(
                     key, data=_val, chunks=True, maxshape=(None, *_val.shape[1:])

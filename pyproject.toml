@@ -10,12 +10,12 @@ dependencies = [
     "jaxlib",
     "jaxtyping",
     "jupyter",
-    "h5py<3.16", # 3.16 raises TypeError writing an empty slice in append_to_h5 (see qontrol/utils/file_io.py)
+    "h5py",
     "diffrax>=0.6.1", # in keeping with dynamiqs
     "equinox",
     "ipython",
     "optax",
-    "dynamiqs>=0.3.2,<0.3.5", # version supporting QArray; Solver->Method change; 0.3.5 regresses QArray indexing (test_*_forbidden_states), 0.3.6 drops the `options` kwarg on sesolve/mesolve/(se|me)propagator
+    "dynamiqs>=0.3.6", # sesolve/mesolve/(se|me)propagator take Options fields as individual kwargs, not a single `options=`
 ]
 
 [build-system]

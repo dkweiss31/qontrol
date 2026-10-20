@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import dataclasses
+import inspect
+
 import dynamiqs as dq
 import equinox as eqx
 import jax.tree_util as jtu
@@ -9,6 +12,24 @@ from dynamiqs.method import Method, Tsit5
 from dynamiqs.result import Result
 from jax import Array
 from jaxtyping import ArrayLike
+
+
+def _options_kwargs(options: dq.Options, solve_function: callable) -> dict:
+    """Extract the dq.Options fields accepted as kwargs by `solve_function`.
+
+    dynamiqs>=0.3.6 dropped the single `options: dq.Options` argument on
+    sesolve/mesolve/sepropagator/mepropagator in favor of each Options field
+    being passed as its own keyword argument, and the accepted fields differ
+    per function (e.g. sepropagator takes `save_propagators` instead of
+    `save_states`). Filtering against the target function's own signature
+    keeps this correct without hardcoding which fields each one accepts.
+    """
+    accepted = inspect.signature(solve_function).parameters
+    return {
+        field.name: getattr(options, field.name)
+        for field in dataclasses.fields(options)
+        if field.name in accepted
+    }
 
 
 def sesolve_model(
@@ -279,7 +300,7 @@ class SESolveModel(SolveModel):
             exp_ops=self.exp_ops,
             method=method,
             gradient=gradient,
-            options=options,
+            **_options_kwargs(options, dq.sesolve),
         )
         return result, new_H
 
@@ -305,7 +326,7 @@ class MESolveModel(SolveModel):
             exp_ops=self.exp_ops,
             method=method,
             gradient=gradient,
-            options=options,
+            **_options_kwargs(options, dq.mesolve),
         )
         return result, new_H
 
@@ -321,7 +342,11 @@ class SEPropagatorModel(PropagatorModel):
         new_H = self.H_function(parameters)
         new_tsave = self.tsave_function(parameters)
         result = dq.sepropagator(
-            new_H, new_tsave, method=method, gradient=gradient, options=options
+            new_H,
+            new_tsave,
+            method=method,
+            gradient=gradient,
+            **_options_kwargs(options, dq.sepropagator),
         )
         return result, new_H
 
@@ -344,6 +369,6 @@ class MEPropagatorModel(PropagatorModel):
             new_tsave,
             method=method,
             gradient=gradient,
-            options=options,
+            **_options_kwargs(options, dq.mepropagator),
         )
         return result, new_H
