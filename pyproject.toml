@@ -90,6 +90,16 @@ convention = "google"
 skip = ".git,*.ipynb"
 ignore-words-list = "ket"
 
+[tool.pytest.ini_options]
+filterwarnings = [
+    # matplotlib<3.10 (pinned, see dependency comment above) still calls deprecated
+    # pyparsing APIs internally; nothing qontrol can fix on its side.
+    "ignore::pyparsing.exceptions.PyparsingDeprecationWarning",
+    # jax's XLA garbage-collection callback raises a benign KeyboardInterrupt when
+    # pytest-xdist workers are torn down; see jax-ml/jax#10717.
+    "ignore:Exception ignored in.*_xla_gc_callback:pytest.PytestUnraisableExceptionWarning",
+]
+
 # === taskipy tasks definition ===
 
 [tool.taskipy.tasks.lint]
