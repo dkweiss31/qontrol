@@ -103,8 +103,10 @@ def optimize(
                     norm of the gradient falls below this level.
 
     Returns:
-        Optimized parameters from the final timestep.
+        Optimized parameters from the last evaluated timestep.
     """
+    opt_options = dict(opt_options) if opt_options else {}
+
     # check deprecated options
     if 'ignore_termination' in opt_options:
         warnings.warn(
@@ -170,8 +172,6 @@ def optimize(
             if terminate:
                 break
 
-            opt_recorder.previous_parameters = parameters
-
     except KeyboardInterrupt:
         pass
 
@@ -181,7 +181,9 @@ def optimize(
         if filepath is not None:
             append_to_h5(filepath, opt_recorder.data_to_save(), opt_options)
         carry = total_cost, opt_recorder.cost_values, expects, epoch, True
-        _plot(parameters, costs, model, plotter, opt_options, carry)
+        _plot(
+            opt_recorder.current_parameters, costs, model, plotter, opt_options, carry
+        )
         times = opt_recorder.epoch_times[1:]
         print(
             f'{TERMINATION_MESSAGES[termination_key]}\n'
@@ -193,7 +195,7 @@ def optimize(
         if filepath is not None:
             print(f'results saved to {filepath}')
 
-    return parameters
+    return opt_recorder.current_parameters
 
 
 def loss(
@@ -261,18 +263,19 @@ def _run_epoch(
     step_fn: Callable,
 ) -> tuple[Array | dict, TransformInitFn, OptState, tuple]:
     start_time = time.time()
+    evaluated_parameters = parameters
     parameters, grads, opt_state, aux = jax.block_until_ready(
         step_fn(parameters, opt_state)
     )
     elapsed = time.time() - start_time
 
     total_cost, cost_values, _, expects = aux
-    opt_recorder.record_epoch(parameters, cost_values, elapsed, total_cost)
+    opt_recorder.record_epoch(evaluated_parameters, cost_values, elapsed, total_cost)
 
     def _print_cost(_cost: Cost, _value: Array):
         if opt_options['batch_initial_parameters']:
             print(
-                f'    {_cost}; min = {np.min(_value):.3e}, max = {np.min(_value):.3e},'
+                f'    {_cost}; min = {np.min(_value):.3e}, max = {np.max(_value):.3e},'
                 f' avg = {np.mean(_value):.3e}, n_batch = {len(_value)}'
             )
         else:
@@ -290,7 +293,7 @@ def _run_epoch(
         append_to_h5(filepath, opt_recorder.data_to_save(), opt_options)
         opt_recorder.reset(epoch)
     carry = total_cost, opt_recorder.cost_values, expects, epoch, False
-    _plot(parameters, costs, model, plotter, opt_options, carry)
+    _plot(evaluated_parameters, costs, model, plotter, opt_options, carry)
     return parameters, grads, opt_state, aux
 
 
@@ -364,11 +367,12 @@ def _check_for_termination(  # noqa PLR0911
         return True, 0
     # Calculate parameter and gradient norms, and relative cost difference
     dx = _calculate_parameter_diff(opt_recorder)
+    x = _calculate_total_norm(opt_recorder.current_parameters)
     dg = _calculate_total_norm(grads)
     df = _calculate_rel_cost_diff(opt_recorder)
     if dg < opt_options['gtol']:
         return True, 1
-    if dx < opt_options['xtol'] * (opt_options['xtol'] + dx):
+    if dx < opt_options['xtol'] * (opt_options['xtol'] + x):
         return True, 2
     if df < opt_options['ftol']:
         return True, 3
@@ -399,7 +403,7 @@ def _calculate_total_norm(values: Array | dict) -> np.ndarray | float:
 
 def _calculate_rel_cost_diff(opt_recorder: OptimizerRecorder) -> bool:
     """Check if cost change is below tolerance."""
-    current_total_cost, prev_total_cost = opt_recorder.total_costs[-2:]
+    prev_total_cost, current_total_cost = opt_recorder.total_costs[-2:]
     cost_diff = current_total_cost - prev_total_cost
     return np.max(np.abs(cost_diff / current_total_cost))
 
