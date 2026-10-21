@@ -35,6 +35,7 @@ class OptimizerRecorder:
         total_cost: Array,
     ):
         """Record results from an epoch."""
+        self.previous_parameters = self.current_parameters
         self.current_parameters = parameters
         self._append_parameters(parameters)
         self.total_costs.append(total_cost)
