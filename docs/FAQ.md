@@ -67,4 +67,4 @@ where `data_dict` contains the optimized parameters as well as cost function inf
 
 ## You haven't defined my favorite cost function?!
 
-No worries! See the API of [`ql.custom_cost()`][qontrol.custom_cost] as well as [`ql.custom_control_cost()`][qontrol.custom_control_cost] for examples of how to define custom cost functions.
+No worries! See the API of [`ql.custom_cost()`][qontrol.cost.custom_cost] as well as [`ql.custom_control_cost()`][qontrol.cost.custom_control_cost] for examples of how to define custom cost functions.
